@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
+import AnimatedBeam from '@/components/ui/animated-beam';
 
 const Header = dynamic(() => import('@/components/header').then(mod => ({ default: mod.Header })), {
   ssr: false
@@ -18,6 +19,9 @@ export default function APIDetailsPage() {
   const params = useParams();
   const api = mockAPIs.find(a => a.id === params.id);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const beamContainerRef = useRef<HTMLDivElement>(null);
+  const walletRef = useRef<HTMLDivElement>(null);
+  const apiRef = useRef<HTMLDivElement>(null);
 
   if (!api) {
     return <div>API not found</div>;
@@ -30,8 +34,8 @@ export default function APIDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <div className="min-h-screen bg-background text-foreground overflow-hidden dark">
+      <Header theme="dark" />
       
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -44,10 +48,10 @@ export default function APIDetailsPage() {
                     <div className="flex items-center gap-4 mb-4">
                       <Badge variant="secondary">{api.category}</Badge>
                       <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
                         <span className="font-medium">{api.rating}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-gray-500">
+                      <div className="flex items-center gap-1 text-muted-foreground">
                         <Activity className="h-4 w-4" />
                         {api.totalCalls.toLocaleString()} calls
                       </div>
@@ -57,7 +61,7 @@ export default function APIDetailsPage() {
                     {api.status}
                   </Badge>
                 </div>
-                <p className="text-gray-600">{api.description}</p>
+                <p className="text-muted-foreground">{api.description}</p>
               </CardHeader>
             </Card>
 
@@ -77,13 +81,13 @@ export default function APIDetailsPage() {
                     <div className="space-y-4">
                       <div>
                         <h4 className="font-medium mb-2">Endpoint</h4>
-                        <code className="bg-gray-100 px-3 py-2 rounded text-sm block">
+                        <code className="bg-muted px-3 py-2 rounded text-sm block">
                           {api.endpoint}
                         </code>
                       </div>
                       <div>
                         <h4 className="font-medium mb-2">Provider</h4>
-                        <p className="text-sm text-gray-600">{api.provider}</p>
+                        <p className="text-sm text-muted-foreground">{api.provider}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -99,7 +103,7 @@ export default function APIDetailsPage() {
                     <div className="space-y-4">
                       <div>
                         <h4 className="font-medium mb-2">Request Format</h4>
-                        <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
+                        <pre className="bg-muted p-4 rounded text-sm overflow-x-auto">
 {`GET ${api.endpoint}
 Headers:
   X-PAYMENT: <base64-encoded-payment-proof>
@@ -108,7 +112,7 @@ Headers:
                       </div>
                       <div>
                         <h4 className="font-medium mb-2">Response Format</h4>
-                        <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
+                        <pre className="bg-muted p-4 rounded text-sm overflow-x-auto">
 {`{
   "status": "success",
   "data": { ... },
@@ -128,10 +132,10 @@ Headers:
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center p-4 bg-blue-50 rounded">
+                      <div className="flex justify-between items-center p-4 bg-primary/10 rounded">
                         <div>
                           <h4 className="font-medium">Per Call</h4>
-                          <p className="text-sm text-gray-600">Pay only for what you use</p>
+                          <p className="text-sm text-muted-foreground">Pay only for what you use</p>
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold">{api.price} {api.currency}</div>
@@ -153,21 +157,52 @@ Headers:
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-center p-4 bg-gray-50 rounded">
+                <div className="text-center p-4 bg-secondary/20 rounded">
                   <div className="text-2xl font-bold">{api.price} {api.currency}</div>
-                  <div className="text-sm text-gray-600">per API call</div>
+                  <div className="text-sm text-muted-foreground">per API call</div>
                 </div>
-                
-                <Button 
-                  className="w-full" 
+
+                {/* Animated payment flow visualization */}
+                <div className="relative h-32" ref={beamContainerRef}>
+                  <AnimatedBeam
+                    containerRef={beamContainerRef}
+                    fromRef={walletRef}
+                    toRef={apiRef}
+                    reverse={false}
+                    duration={2.5}
+                    gradientStartColor="#f2f4f8ff"
+                    pathColor="#919395ff"
+                    pathOpacity={0.3}
+                  />
+
+                  <div className="absolute top-0 left-0 right-0 flex justify-between items-start">
+                    <div
+                      ref={walletRef}
+                      className="flex flex-col items-center p-2 bg-background/90 backdrop-blur rounded-lg border border-border/50"
+                    >
+                      <DollarSign className="h-4 w-4 text-primary mb-1" />
+                      <span className="text-xs font-medium">Wallet</span>
+                    </div>
+                    <div
+                      ref={apiRef}
+                      className="flex flex-col items-center p-2 bg-background/90 backdrop-blur rounded-lg border border-border/50"
+                    >
+                      <Shield className="h-4 w-4 text-green-600 mb-1" />
+                      <span className="text-xs font-medium">API</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
                   size="lg"
                   onClick={handlePayAndCall}
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   Pay & Call API
                 </Button>
-                
-                <div className="text-xs text-gray-500 text-center">
+
+                <div className="text-xs text-muted-foreground text-center">
                   Powered by x402 protocol. Payment required before each API call.
                 </div>
               </CardContent>

@@ -17,16 +17,16 @@ export function APICard({ api }: APICardProps) {
           <CardTitle className="text-lg">{api.name}</CardTitle>
           <Badge variant="secondary">{api.category}</Badge>
         </div>
-        <p className="text-sm text-gray-600 line-clamp-2">{api.description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-2">{api.description}</p>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
               <span className="text-sm font-medium">{api.rating}</span>
             </div>
-            <div className="flex items-center gap-1 text-sm text-gray-500">
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <Activity className="h-4 w-4" />
               {api.totalCalls.toLocaleString()} calls
             </div>
@@ -35,7 +35,7 @@ export function APICard({ api }: APICardProps) {
           <div className="flex justify-between items-center">
             <div>
               <span className="text-lg font-bold">{api.price} {api.currency}</span>
-              <span className="text-sm text-gray-500 ml-1">per call</span>
+              <span className="text-sm text-muted-foreground ml-1">per call</span>
             </div>
             <Link href={`/api/${api.id}`}>
               <Button size="sm">View Details</Button>

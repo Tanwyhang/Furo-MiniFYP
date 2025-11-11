@@ -30,14 +30,14 @@ export default function ListAPIPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <div className="min-h-screen bg-background dark">
+      <Header theme="dark" />
       
       <main className="container mx-auto px-4 py-8 max-w-2xl">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">List Your API</CardTitle>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Submit your API to the marketplace and start earning with x402 micropayments
             </p>
           </CardHeader>
