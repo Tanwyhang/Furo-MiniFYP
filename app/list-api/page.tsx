@@ -126,7 +126,7 @@ export default function ListAPIPage() {
                 <Checkbox
                   id="isActive"
                   checked={formData.isActive}
-                  onCheckedChange={(checked) => setFormData({...formData, isActive: checked})}
+                  onCheckedChange={(checked) => setFormData({...formData, isActive: checked === true})}
                 />
                 <Label htmlFor="isActive" className="text-sm">
                   Activate API immediately (you can change this later in your dashboard)
