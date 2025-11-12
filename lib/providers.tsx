@@ -8,7 +8,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
 const config = getDefaultConfig({
   appName: 'Furo API Marketplace',
-  projectId: 'YOUR_PROJECT_ID',
+  projectId: process.env.NEXT_PUBLIC_PROJECT_ID || 'demo-project-id',
   chains: [mainnet, polygon, optimism, arbitrum, base, sepolia],
   ssr: false,
 });

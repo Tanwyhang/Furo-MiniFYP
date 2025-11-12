@@ -175,6 +175,7 @@ Located in `lib/mock-data.ts`.
 - Core UI components and layout
 - Basic dashboard functionality
 - API listing form (UI only)
+- Favorites functionality (wallet-gated, client-side only)
 
 ### In Progress 🔄
 - Frontend polish and UX improvements
@@ -187,3 +188,38 @@ Located in `lib/mock-data.ts`.
 - User authentication system
 - Real blockchain payment processing
 - Reputation and review system
+
+---
+
+## Favorites System Implementation
+
+### Current State (Client-Side Only)
+- Favorites are stored in React component state using `useState<Set<string>>()`
+- Wallet connection is required but not used for persistence
+- Favorites reset on page refresh/component unmount
+- No backend integration or database storage
+
+### Required Implementation for Wallet-Based Favorites
+
+1. **Database Storage**: Save favorites to a backend linked to the wallet address
+   - Create `favorites` table with columns: `wallet_address`, `api_id`, `created_at`
+   - Implement proper indexing for fast lookups
+
+2. **API Integration**:
+   - `GET /api/favorites/{address}` - fetch user's favorites
+   - `POST /api/favorites` - save favorite with address
+   - `DELETE /api/favorites/{address}/{api_id}` - remove favorite
+
+3. **State Persistence**: Load favorites on component mount based on connected wallet
+   - Use `useEffect` with wallet address dependency to fetch user favorites
+   - Sync local state with backend data
+
+4. **Real-time Updates**: Sync across devices using the wallet address as identifier
+   - Implement optimistic updates for better UX
+   - Handle race conditions and concurrent modifications
+
+### Files to Update
+- `components/marketplace-content.tsx` - Add backend integration
+- `lib/api/favorites.ts` - Create API client functions
+- `app/api/favorites/` - Create Next.js API routes
+- Database schema - Add favorites table

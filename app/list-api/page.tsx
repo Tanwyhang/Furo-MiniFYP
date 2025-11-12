@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { categories } from '@/lib/mock-data';
 
 export default function ListAPIPage() {
@@ -20,7 +21,8 @@ export default function ListAPIPage() {
     category: '',
     endpoint: '',
     price: '',
-    currency: 'ETH'
+    currency: 'ETH',
+    isActive: true
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,13 +40,13 @@ export default function ListAPIPage() {
           <CardHeader>
             <CardTitle className="text-2xl">List Your API</CardTitle>
             <p className="text-muted-foreground">
-              Submit your API to the marketplace and start earning with x402 micropayments
+              Add your API to the marketplace and start earning with x402 micropayments instantly
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <Label htmlFor="name">API Name</Label>
+                <Label htmlFor="name" className='mb-2'>API Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -55,7 +57,7 @@ export default function ListAPIPage() {
               </div>
 
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className='mb-2'>Description</Label>
                 <Input
                   id="description"
                   value={formData.description}
@@ -66,7 +68,7 @@ export default function ListAPIPage() {
               </div>
 
               <div>
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="category" className='mb-2'>Category</Label>
                 <Select onValueChange={(value) => setFormData({...formData, category: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
@@ -82,7 +84,7 @@ export default function ListAPIPage() {
               </div>
 
               <div>
-                <Label htmlFor="endpoint">API Endpoint</Label>
+                <Label htmlFor="endpoint" className='mb-2'>API Endpoint</Label>
                 <Input
                   id="endpoint"
                   value={formData.endpoint}
@@ -94,7 +96,7 @@ export default function ListAPIPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="price">Price per Call</Label>
+                  <Label htmlFor="price" className='mb-2'>Price per Call</Label>
                   <Input
                     id="price"
                     type="number"
@@ -106,7 +108,7 @@ export default function ListAPIPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="currency">Currency</Label>
+                  <Label htmlFor="currency" className='mb-2'>Currency</Label>
                   <Select onValueChange={(value) => setFormData({...formData, currency: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="ETH" />
@@ -120,8 +122,19 @@ export default function ListAPIPage() {
                 </div>
               </div>
 
+                <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({...formData, isActive: checked})}
+                />
+                <Label htmlFor="isActive" className="text-sm">
+                  Activate API immediately (you can change this later in your dashboard)
+                </Label>
+              </div>
+
               <Button type="submit" className="w-full" size="lg">
-                Submit API for Review
+                Add API to Marketplace
               </Button>
             </form>
           </CardContent>

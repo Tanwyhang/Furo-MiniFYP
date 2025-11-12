@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -9,15 +10,25 @@ const Header = dynamic(() => import('@/components/header').then(mod => ({ defaul
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { mockAPIs } from '@/lib/mock-data';
-import { DollarSign, Activity, Eye, Settings } from 'lucide-react';
+import { DollarSign, Activity, Eye, Settings, Power } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   // Mock user's APIs (in real app, this would be filtered by connected wallet)
-  const userAPIs = mockAPIs.slice(0, 2);
+  const [userAPIs, setUserAPIs] = useState(mockAPIs.slice(0, 2));
   
   const totalEarnings = userAPIs.reduce((sum, api) => sum + (api.totalCalls * api.price), 0);
   const totalCalls = userAPIs.reduce((sum, api) => sum + api.totalCalls, 0);
+
+  const toggleAPIStatus = (apiId: string) => {
+    setUserAPIs(prevAPIs =>
+      prevAPIs.map(api =>
+        api.id === apiId
+          ? { ...api, status: api.status === 'active' ? 'inactive' : 'active' }
+          : api
+      )
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,8 +69,8 @@ export default function DashboardPage() {
               <Eye className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{userAPIs.length}</div>
-              <p className="text-xs text-muted-foreground">All systems operational</p>
+              <div className="text-2xl font-bold">{userAPIs.filter(api => api.status === 'active').length}</div>
+              <p className="text-xs text-muted-foreground">of {userAPIs.length} total APIs</p>
             </CardContent>
           </Card>
         </div>
@@ -93,6 +104,17 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleAPIStatus(api.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        api.status === 'active'
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Power className="h-3 w-3" />
+                      {api.status === 'active' ? 'Active' : 'Inactive'}
+                    </button>
                     <Link href={`/api/${api.id}`}>
                       <Button variant="outline" size="sm">
                         <Eye className="h-4 w-4 mr-2" />

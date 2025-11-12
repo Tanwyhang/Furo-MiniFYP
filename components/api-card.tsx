@@ -1,48 +1,169 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Star, Activity } from 'lucide-react';
+import { Star, Heart } from 'lucide-react';
 import { API } from '@/lib/mock-data';
 import Link from 'next/link';
 
 interface APICardProps {
   api: API;
+  isFavorited?: boolean;
+  onToggleFavorite?: (apiId: string, favorited: boolean) => void;
+  isConnected?: boolean;
 }
 
-export function APICard({ api }: APICardProps) {
+export function APICard({ api, isFavorited = false, onToggleFavorite, isConnected = false }: APICardProps) {
+  const isActive = api.status === 'active';
+  const formatCalls = (calls: number) => (calls / 1000).toFixed(1);
+
+  const cardContent = (
+    <>
+      {/* Header */}
+      <div className="mb-4">
+        <div className="flex items-start justify-between mb-2">
+          <CardTitle className="text-lg font-medium text-foreground">
+            {api.name}
+          </CardTitle>
+          <StatusIndicator status={api.status} />
+        </div>
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {api.description}
+        </p>
+      </div>
+
+      {/* Metadata */}
+      <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
+        <Badge variant="secondary" className="text-xs">
+          {api.category}
+        </Badge>
+        <span>•</span>
+        <span>{formatCalls(api.totalCalls)} calls</span>
+        <span>•</span>
+        <MetricIcon icon={Star} value={api.rating} label="rating" />
+        <span>•</span>
+        <MetricIcon icon={Heart} value={api.totalFavorites} label="favorites" />
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between">
+        <PriceDisplay api={api} isActive={isActive} />
+        <ActionsSection
+          api={api}
+          isActive={isActive}
+          isConnected={isConnected}
+          isFavorited={isFavorited}
+          onToggleFavorite={onToggleFavorite}
+        />
+      </div>
+    </>
+  );
+
+  return isActive ? (
+    <ActiveCard href={`/api/${api.id}`}>
+      {cardContent}
+    </ActiveCard>
+  ) : (
+    <InactiveCard>
+      {cardContent}
+    </InactiveCard>
+  );
+}
+
+// Helper Components
+function StatusIndicator({ status }: { status: string }) {
   return (
-    <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-lg">{api.name}</CardTitle>
-          <Badge variant="secondary">{api.category}</Badge>
-        </div>
-        <p className="text-sm text-muted-foreground line-clamp-2">{api.description}</p>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-              <span className="text-sm font-medium">{api.rating}</span>
-            </div>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Activity className="h-4 w-4" />
-              {api.totalCalls.toLocaleString()} calls
-            </div>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-lg font-bold">{api.price} {api.currency}</span>
-              <span className="text-sm text-muted-foreground ml-1">per call</span>
-            </div>
-            <Link href={`/api/${api.id}`}>
-              <Button size="sm">View Details</Button>
-            </Link>
-          </div>
-        </div>
-      </CardContent>
+    <div
+      className={`w-2 h-2 rounded-full ${
+        status === 'active' ? 'bg-green-500' : 'bg-gray-400'
+      }`}
+      aria-label={`API is ${status}`}
+    />
+  );
+}
+
+function MetricIcon({ icon: Icon, value, label }: {
+  icon: any;
+  value: number | string;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1" title={label}>
+      <Icon className="h-3 w-3 fill-current text-white" />
+      <span>{value}</span>
+    </div>
+  );
+}
+
+function PriceDisplay({ api, isActive }: { api: API; isActive: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className={`text-lg font-semibold ${
+        isActive ? 'text-foreground' : 'text-muted-foreground opacity-50'
+      }`}>
+        {api.price}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {api.currency}/call
+      </span>
+      {!isActive && (
+        <span className="text-xs text-muted-foreground ml-2">(inactive)</span>
+      )}
+    </div>
+  );
+}
+
+function ActionsSection({
+  api,
+  isActive,
+  isConnected,
+  isFavorited,
+  onToggleFavorite
+}: {
+  api: API;
+  isActive: boolean;
+  isConnected: boolean;
+  isFavorited: boolean;
+  onToggleFavorite?: (apiId: string, favorited: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      {isConnected && (
+        <button
+          onClick={() => onToggleFavorite?.(api.id, !isFavorited)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Toggle favorite"
+        >
+          <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current text-red-500' : ''}`} />
+        </button>
+      )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-xs h-7 px-3"
+        onClick={(e) => e.stopPropagation()}
+        disabled={!isActive}
+      >
+        View
+      </Button>
+    </div>
+  );
+}
+
+function ActiveCard({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href}>
+      <Card className="p-6 border shadow-sm hover:shadow-md hover:border-white cursor-pointer transition-all duration-300 ease-in-out bg-card">
+        {children}
+      </Card>
+    </Link>
+  );
+}
+
+function InactiveCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="p-6 border shadow-sm cursor-default transition-shadow bg-card">
+      {children}
     </Card>
   );
 }

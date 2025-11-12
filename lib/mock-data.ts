@@ -10,6 +10,8 @@ export interface API {
   totalCalls: number;
   endpoint: string;
   status: 'active' | 'inactive';
+  isFavorited?: boolean; // Optional field for user-specific favorites
+  totalFavorites: number; // Total number of users who favorited this API
 }
 
 export const mockAPIs: API[] = [
@@ -24,7 +26,8 @@ export const mockAPIs: API[] = [
     rating: 4.8,
     totalCalls: 15420,
     endpoint: 'https://api.weather.com/v1/current',
-    status: 'active'
+    status: 'active',
+    totalFavorites: 234
   },
   {
     id: '2',
@@ -37,7 +40,8 @@ export const mockAPIs: API[] = [
     rating: 4.9,
     totalCalls: 28350,
     endpoint: 'https://api.crypto.com/v1/prices',
-    status: 'active'
+    status: 'inactive',
+    totalFavorites: 512
   },
   {
     id: '3',
@@ -50,7 +54,8 @@ export const mockAPIs: API[] = [
     rating: 4.7,
     totalCalls: 8920,
     endpoint: 'https://api.aitext.com/v1/generate',
-    status: 'active'
+    status: 'active',
+    totalFavorites: 189
   },
   {
     id: '4',
@@ -63,8 +68,9 @@ export const mockAPIs: API[] = [
     rating: 4.6,
     totalCalls: 12100,
     endpoint: 'https://api.vision.com/v1/analyze',
-    status: 'active'
+    status: 'active',
+    totalFavorites: 76
   }
 ];
 
-export const categories = ['All', 'Weather', 'Finance', 'AI/ML', 'Social', 'Gaming', 'IoT'];
+export const categories = ['All', 'Weather', 'Finance', 'AI/ML'];

@@ -103,8 +103,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Pay Per Call</h3>
               <p className="text-muted-foreground">
-                No monthly subscriptions or minimum commitments.
-                Pay only for the API calls you actually use.
+                No subscriptions or minimums. Pay only for what you use.
               </p>
             </div>
 
@@ -112,10 +111,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Shield className="h-8 w-8 text-accent-foreground" />
               </div>
-              <h3 className="text-xl font-semibold mb-4">Secure & Private</h3>
+              <h3 className="text-xl font-semibold mb-4">Blockchain Payments</h3>
               <p className="text-muted-foreground">
-                Powered by blockchain technology with end-to-end encryption
-                and transparent payment verification.
+                Secure, transparent transactions with instant verification.
               </p>
             </div>
 
@@ -125,8 +123,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Instant Access</h3>
               <p className="text-muted-foreground">
-                No lengthy approval processes. Connect your wallet,
-                pay, and get instant access to premium APIs.
+                Connect wallet, pay, get instant API access. No approvals needed.
               </p>
             </div>
           </div>
@@ -157,8 +154,8 @@ export default function LandingPage() {
                 Powered by x402 Protocol
               </h2>
               <p className="text-xl mb-8 text-muted-foreground/80">
-                Built on industry standards for decentralized payments,
-                ensuring compatibility and security across the ecosystem.
+                Industry standard for decentralized API payments with
+                zero fees and instant settlement.
               </p>
 
               <div className="space-y-4 mb-8">
@@ -172,11 +169,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-primary rounded-full" />
-                  <span>Developer-friendly SDK and integration tools</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full" />
-                  <span>Automated dispute resolution and reputation system</span>
+                  <span>AI agent-ready payment system</span>
                 </div>
               </div>
 
@@ -215,11 +208,11 @@ export default function LandingPage() {
       <section className="py-20 px-4 bg-gradient-to-b from-secondary/20 to-background">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-6">
-            Ready to Join the API Revolution?
+            Ready to Transform API Payments?
           </h2>
           <p className="text-xl mb-12 text-muted-foreground/80">
-            Whether you're looking to monetize your APIs or access premium services,
-            Furo provides the infrastructure for the decentralized API economy.
+            Monetize APIs with per-call payments or access premium services
+            through our decentralized payment infrastructure.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
