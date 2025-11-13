@@ -16,9 +16,9 @@ export async function handle(request: NextRequest) {
   const isAnalyticsEndpoint = pathname.includes('/analytics');
   const isCallEndpoint = pathname.includes('/call');
 
-  // Only apply x402 protection to analytics and call endpoints
-  if (!isProtectedRoute || (!isAnalyticsEndpoint && !isCallEndpoint)) {
-    // Pass through to Next.js routes
+  // Only apply x402 protection to call endpoints, not analytics
+  if (!isProtectedRoute || !isCallEndpoint) {
+    // Pass through to Next.js routes (including analytics)
     return NextResponse.next();
   }
 

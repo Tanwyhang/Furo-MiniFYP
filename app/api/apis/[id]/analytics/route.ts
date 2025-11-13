@@ -6,10 +6,10 @@ const prisma = new PrismaClient();
 // GET /api/apis/[id]/analytics - Get API analytics
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '30'; // days
 
@@ -40,7 +40,7 @@ export async function GET(
 
     // Get analytics data
     const [
-      totalRevenue,
+      paymentsData,
       recentUsage,
       totalTokensSold,
       activeTokens,
@@ -50,14 +50,18 @@ export async function GET(
       errorStats,
       topUsers
     ] = await Promise.all([
-      // Total revenue from payments
-      prisma.payment.aggregate({
+      // Total revenue from payments - use findMany and calculate manually
+      prisma.payment.findMany({
         where: {
           apiId: id,
           isVerified: true
         },
-        _sum: { amount: true },
-        _count: { id: true }
+        select: {
+          amount: true,
+          numberOfTokens: true,
+          tokensIssued: true,
+          createdAt: true
+        }
       }),
 
       // Recent usage logs
@@ -112,28 +116,26 @@ export async function GET(
       prisma.usageLog.aggregate({
         where: {
           apiId: id,
-          createdAt: { gte: startDate }
-        },
-        _avg: { responseTime: true },
-        _sum: { responseSize: true },
-        _count: { id: true },
-        where: {
-          apiId: id,
           createdAt: { gte: startDate },
           success: true
-        }
+        },
+        _avg: { responseTime: true },
+        _sum: { responseSize: true },
+        _count: { id: true }
       }),
 
-      // Daily usage statistics
-      prisma.usageLog.groupBy({
-        by: ['createdAt'],
+      // Daily usage statistics - simplified approach
+      prisma.usageLog.findMany({
         where: {
           apiId: id,
           createdAt: { gte: startDate }
         },
-        _count: { id: true },
-        _avg: { responseTime: true },
-        _sum: { responseSize: true },
+        select: {
+          createdAt: true,
+          responseTime: true,
+          responseSize: true,
+          success: true
+        },
         orderBy: { createdAt: 'asc' }
       }),
 
@@ -164,6 +166,13 @@ export async function GET(
       })
     ]);
 
+    // Calculate total revenue from payments data
+    const totalRevenue = paymentsData.reduce((sum, payment) => {
+      return sum + BigInt(payment.amount || '0');
+    }, BigInt(0));
+
+    const totalPayments = paymentsData.length;
+
     // Calculate success rate
     const totalRequests = await prisma.usageLog.count({
       where: {
@@ -189,12 +198,33 @@ export async function GET(
       percentage: totalRequests > 0 ? (stat._count.id / totalRequests) * 100 : 0
     }));
 
-    // Process daily stats
-    const dailyUsageStats = dailyStats.map(stat => ({
-      date: stat.createdAt,
-      requests: stat._count.id,
-      avgResponseTime: Math.round(stat._avg.responseTime || 0),
-      totalDataTransferred: stat._sum.responseSize || 0
+    // Process daily stats - group by date manually
+    const dailyStatsMap = dailyStats.reduce((acc, log) => {
+      const date = log.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD format
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          requests: 0,
+          totalResponseTime: 0,
+          totalDataTransferred: 0,
+          successfulRequests: 0
+        };
+      }
+      acc[date].requests += 1;
+      acc[date].totalResponseTime += log.responseTime || 0;
+      acc[date].totalDataTransferred += log.responseSize || 0;
+      if (log.success) {
+        acc[date].successfulRequests += 1;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+
+    const dailyUsageStats = Object.values(dailyStatsMap).map((stat: any) => ({
+      date: stat.date,
+      requests: stat.requests,
+      avgResponseTime: Math.round(stat.totalResponseTime / stat.requests),
+      totalDataTransferred: stat.totalDataTransferred,
+      successRate: Math.round((stat.successfulRequests / stat.requests) * 100 * 100) / 100
     }));
 
     // Process recent usage for trends
@@ -213,9 +243,9 @@ export async function GET(
         provider: api.Provider
       },
       revenue: {
-        total: totalRevenue._sum.amount || '0',
-        totalPayments: totalRevenue._count,
-        totalTokensSold: totalTokensSold._count,
+        total: totalRevenue.toString(),
+        totalPayments: totalPayments,
+        totalTokensSold: totalTokensSold._count.id,
         activeTokens: activeTokens
       },
       performance: {
@@ -227,7 +257,7 @@ export async function GET(
       },
       reviews: {
         averageRating: Math.round((reviewStats._avg.rating || 0) * 100) / 100,
-        totalReviews: reviewStats._count,
+        totalReviews: reviewStats._count.id,
         totalHelpfulVotes: reviewStats._sum.helpfulCount || 0
       },
       usage: {
