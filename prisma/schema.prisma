@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../lib/generated/prisma"
@@ -12,4 +6,207 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Api {
+  id                  String     @id
+  providerId          String
+  name                String
+  description         String
+  category            String
+  endpoint            String
+  publicPath          String     @unique
+  method              String     @default("GET")
+  pricePerCall        String
+  currency            String     @default("ETH")
+  isActive            Boolean    @default(true)
+  totalCalls          Int        @default(0)
+  totalRevenue        String     @default("0")
+  averageResponseTime Int        @default(0)
+  uptime              Float      @default(100.0)
+  documentation       Json?
+  headers             Json?
+  queryParams         Json?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime
+  Provider            Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  Favorite            Favorite[]
+  Payment             Payment[]
+  Review              Review[]
+  Token               Token[]
+  UsageLog            UsageLog[]
+
+  @@index([category])
+  @@index([isActive])
+  @@index([pricePerCall])
+  @@index([providerId])
+  @@index([totalCalls])
+}
+
+model ApiKey {
+  id          String    @id
+  providerId  String
+  name        String
+  keyHash     String    @unique
+  lastUsed    DateTime?
+  isActive    Boolean   @default(true)
+  permissions Json?
+  rateLimit   Int?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@index([isActive])
+  @@index([keyHash])
+  @@index([providerId])
+}
+
+model Configuration {
+  id          String   @id
+  key         String   @unique
+  value       Json
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([isActive])
+  @@index([key])
+}
+
+model Favorite {
+  id         String   @id
+  userId     String
+  apiId      String
+  providerId String
+  createdAt  DateTime @default(now())
+  Api        Api      @relation(fields: [apiId], references: [id], onDelete: Cascade)
+  Provider   Provider @relation(fields: [userId], references: [walletAddress], onDelete: Cascade)
+
+  @@unique([userId, apiId])
+  @@index([apiId])
+  @@index([userId])
+}
+
+model Payment {
+  id               String    @id
+  providerId       String
+  developerAddress String
+  transactionHash  String    @unique
+  amount           String
+  currency         String
+  numberOfTokens   Int
+  tokensIssued     Int       @default(0)
+  blockNumber      BigInt?
+  blockTimestamp   DateTime?
+  isVerified       Boolean   @default(false)
+  isReplay         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  apiId            String?
+  Api              Api?      @relation(fields: [apiId], references: [id])
+  Provider         Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  Token            Token[]
+
+  @@index([createdAt])
+  @@index([developerAddress])
+  @@index([isVerified])
+  @@index([providerId])
+  @@index([transactionHash])
+}
+
+model Provider {
+  id              String     @id
+  walletAddress   String     @unique
+  email           String?    @unique
+  name            String?
+  description     String?
+  website         String?
+  avatarUrl       String?
+  isActive        Boolean    @default(true)
+  reputationScore Float      @default(0)
+  totalEarnings   String     @default("0")
+  totalCalls      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime
+  Api             Api[]
+  Favorite        Favorite[]
+  Payment         Payment[]
+  Token           Token[]
+
+  @@index([isActive])
+  @@index([reputationScore])
+  @@index([walletAddress])
+}
+
+model Review {
+  id              String   @id
+  apiId           String
+  reviewerAddress String
+  rating          Int
+  comment         String?
+  isVerified      Boolean  @default(false)
+  helpfulCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  Api             Api      @relation(fields: [apiId], references: [id], onDelete: Cascade)
+
+  @@unique([apiId, reviewerAddress])
+  @@index([apiId])
+  @@index([rating])
+  @@index([reviewerAddress])
+}
+
+model Token {
+  id               String    @id
+  paymentId        String
+  apiId            String
+  providerId       String
+  developerAddress String
+  tokenHash        String    @unique
+  isUsed           Boolean   @default(false)
+  usedAt           DateTime?
+  expiresAt        DateTime
+  lastValidAfter   DateTime
+  requestMetadata  Json?
+  createdAt        DateTime  @default(now())
+  Api              Api       @relation(fields: [apiId], references: [id], onDelete: Cascade)
+  Payment          Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  Provider         Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  UsageLog         UsageLog?
+
+  @@index([apiId])
+  @@index([developerAddress])
+  @@index([expiresAt])
+  @@index([isUsed])
+  @@index([paymentId])
+  @@index([providerId])
+  @@index([tokenHash])
+}
+
+model UsageLog {
+  id               String   @id
+  tokenId          String   @unique
+  apiId            String
+  providerId       String
+  developerAddress String
+  requestHeaders   Json?
+  requestParams    Json?
+  requestBody      String?
+  responseStatus   Int
+  responseTime     Int
+  responseSize     Int
+  errorMessage     String?
+  success          Boolean  @default(false)
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime @default(now())
+  Api              Api      @relation(fields: [apiId], references: [id], onDelete: Cascade)
+  Token            Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([apiId])
+  @@index([createdAt])
+  @@index([developerAddress])
+  @@index([providerId])
+  @@index([success])
+  @@index([tokenId])
 }

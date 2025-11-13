@@ -4,7 +4,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Furo is a Data and API Marketplace DApp that allows developers and data providers to monetize their APIs and data streams using crypto micropayments (x402). The platform enables providers to publish endpoints and set pricing, enforce pay-per-call access through x402 paywalls, verify on-chain payments, and manage settlements and payouts. It also provides a marketplace for discovery, ratings, and analytics. The MVP will be a centrally hosted app (Next.js and Node) with blockchain-native payments.
+Furo is a **crypto-native API gateway and payment relay** that enables developers to make **paid API requests** to registered providers through a single unified endpoint. Providers do not need to host any proxy, integrate SDKs, or modify their infrastructure. They simply register their **API endpoint** and **wallet address**, while the platform manages all payment verification, access control, and API delivery on their behalf.
+
+The platform implements the **x402 protocol** - a crypto micropayment standard where API calls require verified on-chain payments. When developers call Furo's APIs, they receive **402 Payment Required** responses with payment details. Upon payment confirmation, Furo securely relays the request to the actual provider API and returns the response.
+
+Developers interact exclusively with the platform rather than directly accessing provider APIs. Each API call requires a **verified crypto payment**, ensuring providers receive **on-chain funds directly** without intermediaries. The system operates through **peer-to-peer (P2P) transactions**, where developers pay providers directly, and the platform only verifies the transaction before granting temporary access. This enables **instant decentralized payouts** while maintaining a seamless developer experience.
+
+### Core Architecture
+
+The system involves three main participants:
+
+* **Developer (API Consumer)**
+* **Furo Gateway (the platform)**
+* **Provider (API Owner)**
+
+#### x402 Payment and Relay Flow
+
+**One token equals one valid API call.** Developers can purchase multiple tokens for the same API, but each token remains single-use (one token = one call).
+
+1. **Provider Registration**: Providers connect their crypto wallet and submit their API endpoint together with a price per API call. The wallet address serves as their **unique identifier**, **payout address**, and **verification key**.
+
+2. **Developer API Call**: Developers call Furo's unified API endpoints (e.g., `api.furo.io/weather`). The initial call receives a **402 Payment Required** response with:
+   - Provider's wallet address
+   - Required payment amount
+   - Payment instructions
+
+3. **On-Chain Payment**: Developers send crypto payment directly to the provider's wallet. They can pay for multiple calls in advance (e.g., 5× the price for 5 tokens).
+
+4. **Payment Confirmation**: Developers retry the API call with the transaction hash in the `X-Payment` header. Furo verifies the on-chain payment and issues **single-use tokens**.
+
+5. **Secure Relay**: Upon successful verification, Furo securely forwards the request to the provider's actual API endpoint, maintaining the original request parameters and headers.
+
+6. **Response Delivery**: The provider's response returns through Furo to the developer. The used token is marked as **consumed** and cannot be reused.
+
+#### x402 Protocol Implementation
+
+Furo implements the x402 protocol as follows:
+
+* **402 Response**: Initial API calls return HTTP 402 with payment metadata
+* **Payment Verification**: Transaction hashes are verified on-chain before token issuance
+* **Token Management**: Single-use tokens prevent replay attacks and ensure one-call-per-token
+* **Secure Proxy**: Provider endpoints remain hidden; all traffic flows through Furo
+
+### Key Features
+
+* **Zero setup for providers:** No code, SDKs, or proxy configuration required
+* **x402 Protocol:** Industry-standard crypto micropayment for API access
+* **Automatic, instant payouts:** Direct on-chain payment to providers
+* **Simple for developers:** Standard HTTP calls with x402 payment flow
+* **Endpoint protection:** APIs remain private and secure behind Furo
+* **Transparent and fair:** One token equals one call, with on-chain proof of payment
 
 ### A Note on Showcasing Skills
 To better demonstrate core software engineering skills and reduce reliance on external SDKs, this project focuses on building key components from scratch, including a custom backend API and implementing the core x402 payment protocol manually.
@@ -14,8 +63,8 @@ To better demonstrate core software engineering skills and reduce reliance on ex
 ## Modules Overview
 
 1. **Marketplace Core (Custom Backend API)** – Custom-built backend using Node.js, Express.js, and Prisma to manage PostgreSQL database
-2. **Custom x402 Payment Gateway** – From-scratch implementation of the L402 protocol
-3. **Provider Sandbox and SDK** – Plug-and-play middleware and SDK tools for providers
+2. **Custom x402 Payment Gateway** – From-scratch implementation of the x402 protocol with 402 responses and payment verification
+3. **API Relay Service** – Secure proxy that forwards requests to provider endpoints after payment verification
 4. **Frontend (Marketplace UI)** – API discovery, payments, onboarding, and dashboards
 5. **Billing and Settlement Engine** – Records payments and manages payout flows
 6. **Reputation, Dispute, and Governance** – Ratings, reviews, and dispute management
@@ -107,7 +156,7 @@ Located in `lib/mock-data.ts`.
 
 ## Development Requirements
 
-- Node.js 18+
+- Node.js 18-24 **Required for Prisma 6.x compatibility**
 - pnpm package manager
 - Environment variable: `NEXT_PUBLIC_PROJECT_ID` for RainbowKit
 - Web3 wallet (MetaMask, RainbowKit-supported wallets) for testing
@@ -140,17 +189,19 @@ Located in `lib/mock-data.ts`.
 - [ ] **Authentication:** Implement endpoint protection and user management logic
 - [ ] **Connect Frontend to Backend:** Wire up frontend forms and data displays to custom backend
 
-### Phase 3: From-Scratch x402 Payments (Module 2) ⏳ TODO
+### Phase 3: From-Scratch x402 Payments and API Relay (Module 2 & 3) ⏳ TODO
 
-- [ ] **Server: Paywall Middleware:** Create Express middleware to protect routes with `402 Payment Required` challenges
-- [ ] **Client: HTTP Interceptor:** Create wrapper for `fetch`/`axios` that intercepts `402` responses
-- [ ] **Client: Payment UI:** On `402`, trigger UI modal for user transaction approval
-- [ ] **Client: Transaction Handling:** Use `ethers.js`/`viem` to send transactions on user approval
-- [ ] **Client: Retry with Proof:** Construct Payment Payload with `txHash`, Base64-encode, re-send with `X-PAYMENT` header
-- [ ] **Server: Payment Verification:** Decode `X-PAYMENT` header, verify `txHash` on-chain using `ethers.js`/`viem`
-- [ ] **Server: Verify & Prevent Replay:** Confirm transaction details and check against `verified_payments` table
-- [ ] **Developer Testing:** Create mock API requests and testing environment for x402 flow
-- [ ] **Testnet Integration:** Configure system to use blockchain testnet (e.g., Sepolia) for payment operations
+- [ ] **Server: x402 Middleware:** Create Express middleware that returns `402 Payment Required` with payment metadata
+- [ ] **API Relay Service:** Build secure proxy that forwards requests to provider endpoints after payment verification
+- [ ] **Payment Verification Service:** Verify transaction hashes on-chain using `ethers.js`/`viem`
+- [ ] **Token Management System:** Issue and track single-use tokens to prevent replay attacks
+- [ ] **Client: HTTP Interceptor:** Create wrapper for `fetch`/`axios` that handles 402 responses and payment flows
+- [ ] **Client: Payment UI:** On 402, trigger payment interface for transaction approval
+- [ ] **Client: Transaction Handling:** Use `ethers.js`/`viem` to send transactions and retry with `X-Payment` header
+- [ ] **Server: Payment Processing:** Decode `X-PAYMENT` header, verify on-chain, issue tokens, and relay requests
+- [ ] **Endpoint Security:** Protect provider endpoints and ensure all access goes through Furo
+- [ ] **Developer Testing:** Create mock APIs and test end-to-end x402 flow with relay
+- [ ] **Testnet Integration:** Configure system to use blockchain testnet (e.g., Sepolia) for operations
 
 ### Phase 4: Core Features and Deployment ⏳ TODO
 
@@ -182,11 +233,13 @@ Located in `lib/mock-data.ts`.
 - Integration testing with mock data
 
 ### TODO/Placeholder ⏳
-- x402 payment protocol implementation
+- x402 payment protocol implementation with 402 responses
+- API relay service for secure provider endpoint access
 - Custom backend API with Node.js/Express
 - Database connectivity (PostgreSQL + Prisma)
 - User authentication system
-- Real blockchain payment processing
+- Real blockchain payment processing and verification
+- Token management system for single-use access
 - Reputation and review system
 
 ---
@@ -223,3 +276,9 @@ Located in `lib/mock-data.ts`.
 - `lib/api/favorites.ts` - Create API client functions
 - `app/api/favorites/` - Create Next.js API routes
 - Database schema - Add favorites table
+- move all test in to /test directory
+- move/create all markdown file into /markdown directory
+- all markdown file except read me and claude.md should be in /markdown
+- minimise the use of hardcoding, use placeholder instead
+- remember we using nextjs api route , This approach keeps everything in one codebase and
+  leverages Next.js's strengths.
