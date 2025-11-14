@@ -1,5 +1,6 @@
 'use client';
 
+import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { PaymentModal } from '@/components/payment-modal';
 import { furoClient, API } from '@/lib/api-client';
 import { formatEther } from 'viem';
 import { useParams, useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
 
 const Header = dynamic(() => import('@/components/header').then(mod => ({ default: mod.Header })), {
   ssr: false

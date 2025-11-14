@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 // Dynamic import the actual providers with ssr: false
-const DynamicProviders = dynamic(() => import('@/lib/providers').then(mod => ({ default: mod.Providers })), {
+const DynamicProviders = dynamic(() => import('@/lib/providxers').then(mod => ({ default: mod.Providers })), {
   ssr: false
 });
 
