@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import AnimatedBeam from '@/components/ui/animated-beam';
 import { PaymentModal } from '@/components/payment-modal';
-import { ProviderGuard } from '@/components/provider-guard';
+import { furoClient, API } from '@/lib/api-client';
+import { formatEther } from 'viem';
+import { useParams, useRouter } from 'next/navigation';
+import { useAccount } from 'wagmi';
 
-// Dynamic imports to avoid SSR issues
 const Header = dynamic(() => import('@/components/header').then(mod => ({ default: mod.Header })), {
   ssr: false
 });
@@ -38,18 +39,14 @@ import {
   AlertCircle,
   ArrowLeft,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useParams } from 'next/navigation';
-import { furoClient, API } from '@/lib/api-client';
-import { useX402Payment } from '@/hooks/use-x402-payment';
-import { formatEther } from 'viem';
 
-// Web3 Component - wrapped in provider guard
-function Web3EnabledPage({
-  apiId,
-}: {
-  apiId: string;
-}) {
+export default function APIDetailsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const apiId = params.id as string;
+  const { address, isConnected } = useAccount();
+
+  // State
   const [api, setAPI] = useState<API | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,35 +54,25 @@ function Web3EnabledPage({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [apiParams, setApiParams] = useState<Record<string, any>>({});
 
-  // Refs for animation
-  const beamContainerRef = useRef<HTMLDivElement>(null);
-  const walletRef = useRef<HTMLDivElement>(null);
-  const apiRef = useRef<HTMLDivElement>(null);
+  // Placeholder for payment functionality
+  const isPaymentLoading = false;
+  const isProcessingPayment = false;
+  const currentPayment = null;
+  const transactionHash = null;
+  const paymentError = null;
+  const isReady = isConnected;
 
-  // Router for navigation
-  const router = useRouter();
-
-  // X402 payment hook
-  const {
-    callAPI,
-    isLoading: isPaymentLoading,
-    isProcessingPayment,
-    currentPayment,
-    transactionHash,
-    error: paymentError,
-    isReady,
-  } = useX402Payment({
-    onSuccess: (result) => {
-      setAPICallResult(result);
-      setIsPaymentModalOpen(false);
-    },
-    onError: (error) => {
-      console.error('API call failed:', error);
-    },
-  });
+  // Set developer address when wallet is connected
+  useEffect(() => {
+    if (address) {
+      furoClient.setDeveloperAddress(address);
+    }
+  }, [address]);
 
   // Load API details
   useEffect(() => {
+    if (!apiId) return;
+
     const loadAPI = async () => {
       try {
         const apiData = await furoClient.getAPI(apiId);
@@ -101,6 +88,13 @@ function Web3EnabledPage({
     loadAPI();
   }, [apiId]);
 
+  // TODO: Set developer address when wallet is connected
+  // useEffect(() => {
+  //   if (address) {
+  //     furoClient.setDeveloperAddress(address);
+  //   }
+  // }, [address]);
+
   // Handlers
   const handlePayAndCall = () => {
     if (!api || !isReady) return;
@@ -110,6 +104,18 @@ function Web3EnabledPage({
   const handleBackClick = () => {
     router.back();
   };
+
+  // Invalid API ID
+  if (!apiId) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Invalid API ID</h2>
+          <p className="text-muted-foreground">Please provide a valid API identifier.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {
@@ -331,49 +337,6 @@ function Web3EnabledPage({
                 <CardTitle>Payment Flow</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative" ref={beamContainerRef}>
-                  {/* Animated beams in the background */}
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <AnimatedBeam
-                      containerRef={beamContainerRef}
-                      fromRef={walletRef}
-                      toRef={apiRef}
-                      duration={3}
-                      delay={0}
-                      pathColor="rgba(59, 130, 246, 0.2)"
-                      pathWidth={2}
-                      gradientStartColor="#3b82f6"
-                      gradientStopColor="#8b5cf6"
-                    />
-                  </div>
-
-                  {/* Flow steps */}
-                  <div className="space-y-4 relative z-10">
-                    <div className="flex items-center gap-2">
-                      <div
-                        ref={walletRef}
-                        className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center"
-                      >
-                        <span className="text-xs text-white">W</span>
-                      </div>
-                      <span className="text-sm">1. Connect Wallet</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
-                      <span className="text-sm">2. Pay with Crypto</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        ref={apiRef}
-                        className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center"
-                      >
-                        <span className="text-xs text-white">API</span>
-                      </div>
-                      <span className="text-sm">3. Get API Response</span>
-                    </div>
-                  </div>
-                </div>
-
                 <Button
                   onClick={handlePayAndCall}
                   disabled={!isReady || isPaymentLoading || isProcessingPayment}
@@ -410,28 +373,5 @@ function Web3EnabledPage({
         error={paymentError}
       />
     </div>
-  );
-}
-
-// Main page component with provider guard
-export default function APIDetailsPage() {
-  const params = useParams();
-  const apiId = params.id as string;
-
-  if (!apiId) {
-    return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Invalid API ID</h2>
-          <p className="text-muted-foreground">Please provide a valid API identifier.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ProviderGuard>
-      <Web3EnabledPage apiId={apiId} />
-    </ProviderGuard>
   );
 }

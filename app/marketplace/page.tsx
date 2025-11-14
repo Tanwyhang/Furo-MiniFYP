@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { MarketplaceContent } from '@/components/marketplace-content';
 
 const Header = dynamic(() => import('@/components/header').then(mod => ({ default: mod.Header })), {
   ssr: false
 });
 
-const MarketplaceContent = dynamic(() => import('@/components/marketplace-content').then(mod => ({ default: mod.MarketplaceContent })), {
-  ssr: false
-});
 
 export default function MarketplacePage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
