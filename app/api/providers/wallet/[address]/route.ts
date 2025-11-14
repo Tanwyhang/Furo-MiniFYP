@@ -31,7 +31,6 @@ export async function GET(
                 Payment: true,
                 Token: true,
                 UsageLog: true,
-                Favorite: true,
                 Review: true
               }
             },
@@ -64,7 +63,7 @@ export async function GET(
             Api: true,
             Payment: true,
             Token: true,
-            Favorite: true
+            Review: true
           }
         }
       }

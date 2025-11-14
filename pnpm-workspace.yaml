@@ -1,4 +1,5 @@
 onlyBuiltDependencies:
+  - '@coinbase/x402'
   - '@prisma/client'
   - '@prisma/engines'
   - prisma

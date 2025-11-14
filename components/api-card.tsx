@@ -21,6 +21,7 @@ interface API {
   providerId: string;
   publicPath: string;
   documentation?: any;
+  favoriteCount?: number;
 }
 
 interface APICardProps {
@@ -35,22 +36,22 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
   const formatCalls = (calls: number) => (calls / 1000).toFixed(1);
 
   const cardContent = (
-    <>
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="mb-4">
+      <div className="mb-4 flex-grow">
         <div className="flex items-start justify-between mb-2">
           <CardTitle className="text-lg font-medium text-foreground">
             {api.name}
           </CardTitle>
           <StatusIndicator status={api.status} />
         </div>
-        <p className="text-sm text-muted-foreground line-clamp-2">
+        <p className="text-sm text-muted-foreground line-clamp-3 h-[3.5rem] leading-5">
           {api.description}
         </p>
       </div>
 
       {/* Metadata */}
-      <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground flex-shrink-0">
         <Badge variant="secondary" className="text-xs">
           {api.category}
         </Badge>
@@ -58,10 +59,16 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
         <span>{formatCalls(api.totalCalls)} calls</span>
         <span>•</span>
         <MetricIcon icon={Star} value={api.rating.toFixed(1)} label="rating" />
+        {api.favoriteCount !== undefined && (
+          <>
+            <span>•</span>
+            <MetricIcon icon={Heart} value={api.favoriteCount.toString()} label="favorites" />
+          </>
+        )}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <PriceDisplay api={api} isActive={isActive} />
         <ActionsSection
           api={api}
@@ -71,7 +78,7 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
           onToggleFavorite={onToggleFavorite}
         />
       </div>
-    </>
+    </div>
   );
 
   return isActive ? (
@@ -182,10 +189,10 @@ function ActionsSection({
 
 function ActiveCard({ href, children, isFavorited }: { href: string; children: React.ReactNode; isFavorited?: boolean }) {
   return (
-    <Card className={`p-6 border shadow-sm hover:shadow-md hover:border-white transition-all duration-300 ease-in-out bg-card group relative ${
+    <Card className={`h-full p-6 border shadow-sm hover:shadow-md hover:border-white transition-all duration-300 ease-in-out bg-card group relative flex flex-col ${
       isFavorited ? 'border-red-200 shadow-red-100' : ''
     }`}>
-      <Link href={href} className="block">
+      <Link href={href} className="block h-full flex flex-col">
         {children}
       </Link>
     </Card>
@@ -194,7 +201,7 @@ function ActiveCard({ href, children, isFavorited }: { href: string; children: R
 
 function InactiveCard({ children }: { children: React.ReactNode }) {
   return (
-    <Card className="p-6 border shadow-sm cursor-default transition-shadow bg-card">
+    <Card className="h-full p-6 border shadow-sm cursor-default transition-shadow bg-card flex flex-col">
       {children}
     </Card>
   );

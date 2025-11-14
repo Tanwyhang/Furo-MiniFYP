@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@/lib/generated/prisma/client';
+import { distributePaymentToProvider } from '@/lib/payment-distributor';
 
 const prisma = new PrismaClient();
 
@@ -163,35 +164,68 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Distribute payment to provider on-chain
+    console.log('💸 Initiating on-chain distribution to provider...');
+    const distributionResult = await distributePaymentToProvider({
+      paymentId: payment.id,
+      providerId: api.Provider.id,
+      totalAmount: paymentAmountBigInt.toString(),
+      currency: payment.currency,
+      transactionHash: payment.transactionHash
+    });
+
+    const responseData: any = {
+      payment: {
+        id: payment.id,
+        transactionHash: payment.transactionHash,
+        amount: payment.amount,
+        currency: payment.currency,
+        numberOfTokens: payment.numberOfTokens,
+        tokensIssued: payment.tokensIssued,
+        verifiedAt: payment.createdAt
+      },
+      tokens: tokens.map(token => ({
+        id: token.id,
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt
+      })),
+      api: {
+        id: api.id,
+        name: api.name,
+        pricePerCall: api.pricePerCall,
+        currency: api.currency
+      },
+      provider: {
+        id: api.Provider.id,
+        name: api.Provider.name,
+        walletAddress: api.Provider.walletAddress
+      }
+    };
+
+    // Include distribution information if successful
+    if (distributionResult.success) {
+      responseData.distribution = {
+        success: true,
+        distributionTxHash: distributionResult.distributionTxHash,
+        providerAddress: distributionResult.providerAddress,
+        amount: distributionResult.amount,
+        distributedAt: new Date().toISOString()
+      };
+      console.log('✅ Payment distribution completed successfully');
+    } else {
+      // Even if distribution fails, the payment is still processed
+      // Log the error but don't fail the entire payment processing
+      console.error('⚠️ Payment distribution failed:', distributionResult.error);
+      responseData.distribution = {
+        success: false,
+        error: distributionResult.error,
+        willRetry: true
+      };
+    }
+
     return NextResponse.json({
       success: true,
-      data: {
-        payment: {
-          id: payment.id,
-          transactionHash: payment.transactionHash,
-          amount: payment.amount,
-          currency: payment.currency,
-          numberOfTokens: payment.numberOfTokens,
-          tokensIssued: payment.tokensIssued,
-          verifiedAt: payment.createdAt
-        },
-        tokens: tokens.map(token => ({
-          id: token.id,
-          tokenHash: token.tokenHash,
-          expiresAt: token.expiresAt
-        })),
-        api: {
-          id: api.id,
-          name: api.name,
-          pricePerCall: api.pricePerCall,
-          currency: api.currency
-        },
-        provider: {
-          id: api.Provider.id,
-          name: api.Provider.name,
-          walletAddress: api.Provider.walletAddress
-        }
-      }
+      data: responseData
     }, { status: 201 });
 
   } catch (error) {

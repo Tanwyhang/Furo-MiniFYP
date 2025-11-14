@@ -77,8 +77,7 @@ export async function GET(request: NextRequest) {
                   }
                 }
               },
-              Favorite: true,
-              Review: {
+                            Review: {
                 where: { isVerified: true }
               }
             }
@@ -109,9 +108,34 @@ export async function GET(request: NextRequest) {
       reviewCount: api._count.Review
     }));
 
+    // Get favorite counts for all APIs
+    const favoriteCounts = await prisma.favorite.groupBy({
+      by: ['apiId'],
+      _count: {
+        id: true
+      },
+      where: {
+        apiId: {
+          in: apisWithRatings.map(api => api.id)
+        }
+      }
+    });
+
+    // Create a map of API ID to favorite count
+    const favoriteCountMap = favoriteCounts.reduce((acc, item) => {
+      acc[item.apiId] = item._count.id;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Add favorite counts to APIs
+    const apisWithFavorites = apisWithRatings.map(api => ({
+      ...api,
+      favoriteCount: favoriteCountMap[api.id] || 0
+    }));
+
     return NextResponse.json({
       success: true,
-      data: apisWithRatings,
+      data: apisWithFavorites,
       meta: {
         page,
         limit,

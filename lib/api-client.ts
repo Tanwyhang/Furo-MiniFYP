@@ -40,6 +40,7 @@ export interface API {
   };
   averageRating?: number;
   reviewCount?: number;
+  favoriteCount?: number;
 }
 
 export interface PaymentRequest {

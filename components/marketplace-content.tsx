@@ -74,22 +74,7 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
 
       if (response.success) {
         const newAPIs = response.data;
-
-        // Sort APIs: favorited ones first, then others
-        const sortedAPIs = newAPIs.sort((a, b) => {
-          const aFavorited = favorites.has(a.id);
-          const bFavorited = favorites.has(b.id);
-
-          // If both are favorited or both are not, maintain original order
-          if (aFavorited === bFavorited) {
-            return 0;
-          }
-
-          // Favorited APIs come first
-          return bFavorited - aFavorited;
-        });
-
-        setApis(prev => append ? [...prev, ...sortedAPIs] : sortedAPIs);
+        setApis(prev => append ? [...prev, ...newAPIs] : newAPIs);
         setHasMore(response.meta.hasNext);
         setPage(pageNum);
       } else {
@@ -102,27 +87,6 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
       setIsLoading(false);
     }
   };
-
-  // Re-sort APIs when favorites change
-  useEffect(() => {
-    if (apis.length > 0) {
-      // Sort APIs: favorited ones first, then others
-      const sortedAPIs = [...apis].sort((a, b) => {
-        const aFavorited = favorites.has(a.id);
-        const bFavorited = favorites.has(b.id);
-
-        // If both are favorited or both are not, maintain original order
-        if (aFavorited === bFavorited) {
-          return 0;
-        }
-
-        // Favorited APIs come first
-        return bFavorited - aFavorited;
-      });
-
-      setApis(sortedAPIs);
-    }
-  }, [favorites]);
 
   // Initial load and category change
   useEffect(() => {
@@ -214,8 +178,14 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
     providerId: api.providerId,
     publicPath: api.publicPath,
     documentation: api.documentation,
+    favoriteCount: api.favoriteCount || 0,
     // Add any other fields required by APICard
   });
+
+  // Separate favorited and non-favorited APIs
+  const favoritedAPIs = filteredAPIs.filter(api => favorites.has(api.id));
+  const nonFavoritedAPIs = filteredAPIs.filter(api => !favorites.has(api.id));
+  const displayAPIs = [...favoritedAPIs, ...nonFavoritedAPIs];
 
   return (
     <>
@@ -270,26 +240,28 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
 
       {/* API List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all duration-500 ease-in-out">
-        {filteredAPIs.map((api, index) => (
+        {displayAPIs.map((api, index) => (
           <div
             key={api.id}
-            className="transform transition-all duration-500 ease-out"
+            className="transform transition-all duration-500 ease-out h-[240px]"
             style={{
               transitionDelay: `${index * 50}ms`, // Staggered animation
             }}
           >
-            <APICard
-              api={transformAPIForCard(api)}
-              isFavorited={favorites.has(api.id)}
-              onToggleFavorite={handleToggleFavorite}
-              isConnected={isConnected}
-            />
+            <div className="h-full flex flex-col">
+              <APICard
+                api={transformAPIForCard(api)}
+                isFavorited={favorites.has(api.id)}
+                onToggleFavorite={handleToggleFavorite}
+                isConnected={isConnected}
+              />
+            </div>
           </div>
         ))}
       </div>
 
       {/* Empty State */}
-      {!isLoading && !error && filteredAPIs.length === 0 && (
+      {!isLoading && !error && displayAPIs.length === 0 && (
         <div className="text-center py-12">
           <div className="text-muted-foreground mb-4">
             No APIs found in {selectedCategory === 'All' ? 'any category' : selectedCategory}
@@ -301,7 +273,7 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
       )}
 
       {/* Load More Button */}
-      {!isLoading && !error && filteredAPIs.length > 0 && hasMore && (
+      {!isLoading && !error && displayAPIs.length > 0 && hasMore && (
         <div className="text-center mt-8">
           <Button
             variant="outline"
