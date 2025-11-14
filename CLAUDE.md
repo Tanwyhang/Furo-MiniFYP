@@ -67,7 +67,7 @@ To better demonstrate core software engineering skills and reduce reliance on ex
 3. **Token Management System** – Single-use token issuance, validation, and consumption with atomic operations
 4. **API Relay Service** – Secure proxy that forwards requests to provider endpoints after payment verification
 5. **Frontend (Marketplace UI)** – API discovery, payments, onboarding, and dashboards
-6. **Database Schema** – Comprehensive Prisma schema with 9 models (Provider, Api, Payment, Token, UsageLog, Favorite, Review, ApiKey, Configuration)
+6. **Database Schema** – Comprehensive Prisma schema with 8 models (Provider, Api, Payment, Token, UsageLog, Favorite, Review, ApiKey)
 7. **Usage Analytics** – Real-time API usage tracking, response time monitoring, and revenue analytics
 8. **Security and Rate Limiting** – API protection, replay prevention, and developer address verification
 9. **Next.js 16 Proxy System** – Modern proxy implementation replacing deprecated middleware pattern
@@ -508,3 +508,65 @@ pnpm tsx test/test-complete-x402-flow.ts
 - **Token**: Single-use access tokens with expiration
 - **UsageLog**: Detailed API call logs and analytics
 - **Favorite**: User favorites linked to wallet addresses
+- **ApiKey**: Provider programmatic access keys with permissions and rate limiting
+
+### ApiKey System (Provider Programmatic Access)
+
+The **ApiKey** model enables providers to create and manage programmatic access keys for their APIs, allowing automated integrations and third-party services to interact with their offerings on Furo.
+
+#### Key Features:
+
+**🔐 Security & Authentication**
+- **Key Hashing**: API keys are stored as secure hashes (not plaintext)
+- **Provider Ownership**: Each API key belongs to a specific provider
+- **Active/Inactive Status**: Keys can be enabled/disabled without deletion
+- **Expiration**: Optional expiration dates for temporary access
+
+**🛡️ Access Control & Permissions**
+- **JSON Permissions**: Flexible permission system stored as JSON
+- **Rate Limiting**: Per-key rate limits to prevent abuse
+- **Scope Control**: Fine-grained control over which APIs/endpoints can be accessed
+- **Usage Tracking**: Last used timestamp for monitoring
+
+**📊 Management & Analytics**
+- **Multiple Keys**: Providers can create multiple API keys for different use cases
+- **Usage Monitoring**: Track when and how often keys are used
+- **Lifecycle Management**: Create, update, rotate, and delete keys
+- **Audit Trail**: Full history of key creation and usage
+
+#### ApiKey Schema Structure:
+
+```typescript
+{
+  id: string,           // Unique identifier
+  providerId: string,   // Owner provider
+  name: string,         // Human-readable name
+  keyHash: string,      // Secure hash of the API key
+  lastUsed: DateTime,   // Last usage timestamp
+  isActive: boolean,    // Active/inactive status
+  permissions: Json,    // Permission configuration
+  rateLimit: number,    // Requests per time period
+  expiresAt: DateTime,  // Optional expiration
+  createdAt: DateTime,  // Creation timestamp
+  updatedAt: DateTime   // Last modification
+}
+```
+
+#### Use Cases:
+
+1. **Third-Party Integrations**: Allow external services to access provider APIs
+2. **Automated Workflows**: Enable automated testing and monitoring
+3. **Partner Access**: Grant controlled access to business partners
+4. **Development Environments**: Separate keys for dev/staging/production
+5. **Rate-Limited Access**: Provide different access tiers for different clients
+
+#### Security Benefits:
+
+- **No Wallet Required**: Programmatic access without blockchain wallet
+- **Revoke Access**: Instantly disable compromised keys
+- **Granular Control**: Specific permissions for each key
+- **Monitoring**: Track all programmatic access attempts
+- **Rotation Support**: Easy key rotation without disrupting services
+- use local db
+- dont run pnpm dev after u make changes
+- im running port 3000 pnpm run dev on my own terminal, so you shouldnt run for me

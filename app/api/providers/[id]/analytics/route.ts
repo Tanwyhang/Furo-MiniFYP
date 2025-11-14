@@ -39,7 +39,7 @@ export async function GET(
 
     // Get analytics data
     const [
-      totalRevenue,
+      totalRevenueData,
       recentPayments,
       totalTokensSold,
       activeTokens,
@@ -47,14 +47,18 @@ export async function GET(
       dailyStats,
       topApis
     ] = await Promise.all([
-      // Total revenue from verified payments
-      prisma.payment.aggregate({
+      // Total revenue from verified payments - use findMany and calculate manually
+      prisma.payment.findMany({
         where: {
           providerId: id,
           isVerified: true
         },
-        _sum: { amount: true },
-        _count: { id: true }
+        select: {
+          amount: true,
+          numberOfTokens: true,
+          tokensIssued: true,
+          createdAt: true
+        }
       }),
 
       // Recent payments
@@ -113,26 +117,26 @@ export async function GET(
           _count: {
             select: {
               Token: true,
-              UsageLog: {
-                where: {
-                  createdAt: { gte: startDate }
-                }
-              },
+              UsageLog: true,
               Review: true
             }
           }
         }
       }),
 
-      // Daily usage statistics
-      prisma.usageLog.groupBy({
-        by: ['createdAt'],
+      // Daily usage statistics - use findMany with relation to filter by provider
+      prisma.usageLog.findMany({
         where: {
-          providerId: id,
+          Api: {
+            providerId: id
+          },
           createdAt: { gte: startDate }
         },
-        _count: { id: true },
-        _sum: { responseTime: true },
+        select: {
+          createdAt: true,
+          responseTime: true,
+          success: true
+        },
         orderBy: { createdAt: 'asc' }
       }),
 
@@ -175,14 +179,47 @@ export async function GET(
       _count: { id: true }
     });
 
+    // Calculate total revenue from payments data
+    const totalRevenue = totalRevenueData.reduce((sum, payment) => {
+      return sum + BigInt(payment.amount || '0');
+    }, BigInt(0));
+
+    const totalPayments = totalRevenueData.length;
+
+    // Calculate daily stats - group by date manually
+    const dailyStatsMap = dailyStats.reduce((acc, log) => {
+      const date = log.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD format
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          calls: 0,
+          totalResponseTime: 0,
+          successfulCalls: 0
+        };
+      }
+      acc[date].calls += 1;
+      acc[date].totalResponseTime += log.responseTime || 0;
+      if (log.success) {
+        acc[date].successfulCalls += 1;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+
+    const processedDailyStats = Object.values(dailyStatsMap).map((stat: any) => ({
+      date: stat.date,
+      calls: stat.calls,
+      avgResponseTime: Math.round(stat.totalResponseTime / stat.calls),
+      successRate: Math.round((stat.successfulCalls / stat.calls) * 100 * 100) / 100
+    }));
+
     const analytics = {
       provider: {
         ...provider,
-        totalRevenue: totalRevenue._sum.amount || '0',
-        totalPayments: totalRevenue._count
+        totalRevenue: totalRevenue.toString(),
+        totalPayments: totalPayments
       },
       revenue: {
-        total: totalRevenue._sum.amount || '0',
+        total: totalRevenue.toString(),
         recentPayments: recentPayments.length,
         recentRevenue: recentPayments.reduce((sum, payment) =>
           sum + BigInt(payment.amount), BigInt(0)
@@ -203,11 +240,7 @@ export async function GET(
         }))
       },
       usage: {
-        dailyStats: dailyStats.map(stat => ({
-          date: stat.createdAt,
-          calls: stat._count.id,
-          avgResponseTime: stat._sum.responseTime || 0
-        })),
+        dailyStats: processedDailyStats,
         totalApiCalls: apiPerformance.reduce((sum, api) => sum + api.totalCalls, 0)
       },
       topApis: topApis.map(api => ({

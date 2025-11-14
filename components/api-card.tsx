@@ -2,8 +2,26 @@ import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Star, Heart } from 'lucide-react';
-import { API } from '@/lib/mock-data';
 import Link from 'next/link';
+import { formatEther } from 'viem';
+
+// Update the API interface to match our transformed data
+interface API {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  endpoint: string;
+  price: string;
+  currency: string;
+  rating: number;
+  totalCalls: number;
+  status: 'active' | 'inactive';
+  provider: string;
+  providerId: string;
+  publicPath: string;
+  documentation?: any;
+}
 
 interface APICardProps {
   api: API;
@@ -39,9 +57,7 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
         <span>•</span>
         <span>{formatCalls(api.totalCalls)} calls</span>
         <span>•</span>
-        <MetricIcon icon={Star} value={api.rating} label="rating" />
-        <span>•</span>
-        <MetricIcon icon={Heart} value={api.totalFavorites} label="favorites" />
+        <MetricIcon icon={Star} value={api.rating.toFixed(1)} label="rating" />
       </div>
 
       {/* Footer */}
@@ -95,12 +111,21 @@ function MetricIcon({ icon: Icon, value, label }: {
 }
 
 function PriceDisplay({ api, isActive }: { api: API; isActive: boolean }) {
+  // Try to format the price, fall back to original if it fails
+  const formattedPrice = (() => {
+    try {
+      return formatEther(api.price as `0x${string}`);
+    } catch {
+      return api.price;
+    }
+  })();
+
   return (
     <div className="flex items-baseline gap-1">
       <span className={`text-lg font-semibold ${
         isActive ? 'text-foreground' : 'text-muted-foreground opacity-50'
       }`}>
-        {api.price}
+        {formattedPrice}
       </span>
       <span className="text-xs text-muted-foreground">
         {api.currency}/call

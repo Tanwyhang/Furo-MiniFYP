@@ -27,6 +27,14 @@ model Api {
   documentation       Json?
   headers             Json?
   queryParams         Json?
+
+  // Double Relay Fields
+  internalEndpoint    String?    // Our internal relay endpoint path
+  internalAuth        Json?      // Authentication for internal-to-provider communication
+  relayConfiguration  Json?      // Double relay settings and configuration
+  isDirectRelay       Boolean    @default(false)  // Toggle: false = double relay, true = direct relay
+  fallbackEndpoint    String?    // Fallback endpoint for internal relay failures
+
   createdAt           DateTime   @default(now())
   updatedAt           DateTime
   Provider            Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
@@ -41,6 +49,8 @@ model Api {
   @@index([pricePerCall])
   @@index([providerId])
   @@index([totalCalls])
+  @@index([isDirectRelay])
+  @@index([publicPath])
 }
 
 model ApiKey {
@@ -54,24 +64,17 @@ model ApiKey {
   rateLimit   Int?
   createdAt   DateTime  @default(now())
   expiresAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  // Relationship to Provider
+  Provider    Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([isActive])
   @@index([keyHash])
   @@index([providerId])
+  @@index([expiresAt])
 }
 
-model Configuration {
-  id          String   @id
-  key         String   @unique
-  value       Json
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-
-  @@index([isActive])
-  @@index([key])
-}
 
 model Favorite {
   id         String   @id
@@ -129,6 +132,7 @@ model Provider {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime
   Api             Api[]
+  ApiKey          ApiKey[]
   Favorite        Favorite[]
   Payment         Payment[]
   Token           Token[]

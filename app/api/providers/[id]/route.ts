@@ -30,13 +30,13 @@ export async function GET(
             Review: {
               take: 3,
               orderBy: { helpfulCount: 'desc' },
-              include: {
-                reviewer: {
-                  select: {
-                    name: true,
-                    avatarUrl: true
-                  }
-                }
+              select: {
+                id: true,
+                reviewerAddress: true,
+                rating: true,
+                comment: true,
+                helpfulCount: true,
+                createdAt: true
               }
             }
           }

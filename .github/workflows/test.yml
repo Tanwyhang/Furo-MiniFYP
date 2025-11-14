@@ -1,0 +1,110 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: furo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install pnpm
+      run: |
+        corepack enable
+        corepack prepare
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Setup test environment
+      run: |
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/furo_test" >> .env.local
+        echo "INTERNAL_RELAY_SECRET=test-secret-key" >> .env.local
+        echo "TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5432/furo_test" >> .env.local
+
+    - name: Wait for database
+      run: |
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432; do sleep 1; done'
+
+    - name: Generate Prisma client
+      run: pnpm prisma generate
+
+    - name: Run database migrations
+      run: pnpm prisma db push
+
+    - name: Start application
+      run: |
+        pnpm build
+        pnpm start &
+        timeout 60 bash -c 'until curl -f http://localhost:3000/api/providers; do sleep 2; done'
+
+    - name: Run tests
+      run: pnpm test:ci
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Archive test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          test-results/
+          coverage/
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install pnpm
+      run: |
+        corepack enable
+        corepack prepare
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Run linting
+      run: pnpm lint

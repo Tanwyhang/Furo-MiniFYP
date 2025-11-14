@@ -147,7 +147,13 @@ export async function POST(request: NextRequest) {
       currency,
       documentation,
       headers,
-      queryParams
+      queryParams,
+      // Double relay fields
+      internalEndpoint,
+      internalAuth,
+      relayConfiguration,
+      isDirectRelay,
+      fallbackEndpoint
     } = body;
 
     // Validation
@@ -216,6 +222,12 @@ export async function POST(request: NextRequest) {
         totalRevenue: '0',
         averageResponseTime: 0,
         uptime: 100.0,
+        // Double relay fields
+        internalEndpoint: internalEndpoint?.trim() || null,
+        internalAuth: internalAuth || null,
+        relayConfiguration: relayConfiguration || null,
+        isDirectRelay: isDirectRelay !== undefined ? isDirectRelay : false,
+        fallbackEndpoint: fallbackEndpoint?.trim() || null,
         updatedAt: new Date()
       },
       include: {

@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { APICard } from '@/components/api-card';
-import { mockAPIs, categories } from '@/lib/mock-data';
+import { categories } from '@/lib/mock-data'; // Keep categories for now
 import { Button } from '@/components/ui/button';
+import { furoClient, API } from '@/lib/api-client';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface MarketplaceContentProps {
   selectedCategory: string;
@@ -13,55 +17,221 @@ interface MarketplaceContentProps {
 
 export function MarketplaceContent({ selectedCategory, onCategoryChange }: MarketplaceContentProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [apis, setApis] = useState<API[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   // Use Wagmi hooks to check wallet connection
   const { address, isConnected } = useAccount();
 
-  const filteredAPIs = selectedCategory === 'All'
-    ? mockAPIs
-    : mockAPIs.filter(api => api.category === selectedCategory);
+  // Set developer address when wallet is connected
+  useEffect(() => {
+    if (address) {
+      furoClient.setDeveloperAddress(address);
+    }
+  }, [address]);
 
-  const handleToggleFavorite = (apiId: string, favorited: boolean) => {
+  // Load APIs from backend
+  const loadAPIs = async (pageNum = 1, append = false) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const params: any = {
+        page: pageNum,
+        limit: 12,
+        sortBy: 'totalCalls',
+        sortOrder: 'desc',
+        isActive: true,
+      };
+
+      if (selectedCategory !== 'All') {
+        params.category = selectedCategory;
+      }
+
+      const response = await furoClient.getAPIs(params);
+
+      if (response.success) {
+        const newAPIs = response.data;
+        setApis(prev => append ? [...prev, ...newAPIs] : newAPIs);
+        setHasMore(response.meta.hasNext);
+        setPage(pageNum);
+      } else {
+        throw new Error('Failed to load APIs');
+      }
+    } catch (err) {
+      console.error('Error loading APIs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load APIs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial load and category change
+  useEffect(() => {
+    setPage(1);
+    setHasMore(true);
+    loadAPIs(1, false);
+  }, [selectedCategory, address]);
+
+  // Load more APIs
+  const loadMore = () => {
+    if (!isLoading && hasMore) {
+      loadAPIs(page + 1, true);
+    }
+  };
+
+  // Refresh APIs
+  const refresh = () => {
+    setPage(1);
+    setHasMore(true);
+    loadAPIs(1, false);
+  };
+
+  // Filter APIs based on category (client-side for now)
+  const filteredAPIs = selectedCategory === 'All'
+    ? apis
+    : apis.filter(api => api.category.toLowerCase() === selectedCategory.toLowerCase());
+
+  const handleToggleFavorite = async (apiId: string, favorited: boolean) => {
     if (!isConnected || !address) return;
 
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (favorited) {
-        newFavorites.add(apiId);
-      } else {
-        newFavorites.delete(apiId);
-      }
-      return newFavorites;
-    });
+    try {
+      await furoClient.toggleFavorite(apiId);
+
+      setFavorites(prev => {
+        const newFavorites = new Set(prev);
+        if (favorited) {
+          newFavorites.add(apiId);
+        } else {
+          newFavorites.delete(apiId);
+        }
+        return newFavorites;
+      });
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
   };
+
+  // Transform API data for APICard component
+  const transformAPIForCard = (api: API) => ({
+    id: api.id,
+    name: api.name,
+    description: api.description,
+    category: api.category,
+    endpoint: api.endpoint,
+    price: api.pricePerCall,
+    currency: api.currency,
+    rating: api.averageRating || 0,
+    totalCalls: api.totalCalls,
+    status: (api.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+    provider: api.Provider.name,
+    providerId: api.providerId,
+    publicPath: api.publicPath,
+    documentation: api.documentation,
+    // Add any other fields required by APICard
+  });
 
   return (
     <>
-      <div className="flex flex-wrap gap-2 mb-8">
-        {categories.map((category) => (
-          <Button
-            key={category}
-            variant={selectedCategory === category ? "default" : "outline"}
-            size="sm"
-            onClick={() => onCategoryChange(category)}
-            className={selectedCategory !== category ? "text-white hover:text-white" : ""}
-          >
-            {category}
-          </Button>
-        ))}
+      <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-wrap gap-2">
+          {categories.map((category) => (
+            <Button
+              key={category}
+              variant={selectedCategory === category ? "default" : "outline"}
+              size="sm"
+              onClick={() => onCategoryChange(category)}
+              className={selectedCategory !== category ? "text-white hover:text-white" : ""}
+              disabled={isLoading}
+            >
+              {category}
+            </Button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={refresh}
+          disabled={isLoading}
+          className="flex text-white items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Loading State */}
+      {isLoading && apis.length === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="space-y-3">
+              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* API List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {filteredAPIs.map((api) => (
           <APICard
             key={api.id}
-            api={api}
+            api={transformAPIForCard(api)}
             isFavorited={favorites.has(api.id)}
             onToggleFavorite={handleToggleFavorite}
             isConnected={isConnected}
           />
         ))}
       </div>
+
+      {/* Empty State */}
+      {!isLoading && !error && filteredAPIs.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground mb-4">
+            No APIs found in {selectedCategory === 'All' ? 'any category' : selectedCategory}
+          </div>
+          <Button variant="outline" className="text-white" onClick={refresh}>
+            Try Again
+          </Button>
+        </div>
+      )}
+
+      {/* Load More Button */}
+      {!isLoading && !error && filteredAPIs.length > 0 && hasMore && (
+        <div className="text-center mt-8">
+          <Button
+            variant="outline"
+            onClick={loadMore}
+            disabled={isLoading}
+            className="flex items-center gap-2 mx-auto"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                Load More APIs
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         id: `usage_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         tokenId: updatedToken.id,
         apiId: token.Api.id,
-        providerId: token.Provider.id,
+        providerId: token.Api.Provider.id,
         developerAddress: developerAddress.toLowerCase(),
         requestHeaders,
         requestParams,
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         responseTime: 0, // Will be updated by the actual API call
         responseSize: 0, // Will be updated by the actual API call
         success: false, // Will be updated by the actual API call
-        ipAddress: request.ip || 'unknown',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown'
       }
     });
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // Update provider statistics
     await prisma.provider.update({
-      where: { id: token.Provider.id },
+      where: { id: token.Api.Provider.id },
       data: {
         totalCalls: { increment: 1 },
         updatedAt: new Date()
@@ -177,9 +177,9 @@ export async function POST(request: NextRequest) {
           method: token.Api.method
         },
         provider: {
-          id: token.Provider.id,
-          name: token.Provider.name,
-          walletAddress: token.Provider.walletAddress
+          id: token.Api.Provider.id,
+          name: token.Api.Provider.name,
+          walletAddress: token.Api.Provider.walletAddress
         }
       }
     });

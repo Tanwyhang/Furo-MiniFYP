@@ -3,10 +3,10 @@ import { PrismaClient } from '@/lib/generated/prisma/client';
 
 const prisma = new PrismaClient();
 
-// POST /api/apis/[id]/call - Call an API using x402 token system
+// POST /api/internal/apis/[id]/relay - Internal relay to provider's hidden API
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
@@ -16,21 +16,73 @@ export async function POST(
       method = 'GET',
       headers = {},
       params: queryParams = {},
-      body: requestBody
+      body: requestBody,
+      developerAddress
     } = body;
 
-    // Validation
-    if (!tokenHash) {
+    // Internal security: Validate this is an internal request
+    const internalAuthHeader = request.headers.get('X-Internal-Auth');
+    if (internalAuthHeader !== process.env.INTERNAL_RELAY_SECRET) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Token hash is required for API access'
+          error: 'Unauthorized internal relay request'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Validate required fields
+    if (!tokenHash || !developerAddress) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Missing required fields: tokenHash and developerAddress are required'
         },
         { status: 400 }
       );
     }
 
-    // Find the token
+    // Find the API with double relay configuration
+    const api = await prisma.api.findUnique({
+      where: { id },
+      include: {
+        Provider: true
+      }
+    });
+
+    if (!api) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'API not found'
+        },
+        { status: 404 }
+      );
+    }
+
+    // Validate API is configured for double relay
+    if (api.isDirectRelay) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'API is configured for direct relay, not double relay'
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!api.internalEndpoint) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'API is not configured with internal endpoint'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate token and developer address (double-check security)
     const token = await prisma.token.findUnique({
       where: { tokenHash },
       include: {
@@ -45,25 +97,6 @@ export async function POST(
           success: false,
           error: 'Token validation failed',
           details: 'Invalid token: token not found'
-        },
-        { status: 404 }
-      );
-    }
-
-    // Find the API
-    const api = await prisma.api.findUnique({
-      where: { id: token.apiId },
-      include: {
-        Provider: true
-      }
-    });
-
-    if (!api) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Token validation failed',
-          details: 'Associated API not found'
         },
         { status: 404 }
       );
@@ -105,7 +138,6 @@ export async function POST(
       );
     }
 
-    const developerAddress = request.headers.get('X-Developer-Address') || 'unknown';
     if (token.developerAddress.toLowerCase() !== developerAddress.toLowerCase()) {
       return NextResponse.json(
         {
@@ -121,7 +153,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error: 'Token validation failed',
+          error: 'API validation failed',
           details: 'API or provider is inactive'
         },
         { status: 403 }
@@ -155,118 +187,66 @@ export async function POST(
         responseTime: 0, // Will be updated by the actual API call
         responseSize: 0, // Will be updated by the actual API call
         success: false, // Will be updated by the actual API call
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'internal-relay',
+        userAgent: request.headers.get('user-agent') || 'Furo-Internal-Relay/1.0'
       }
     });
 
-    // Token consumed successfully, now make the API call
+    // Token consumed successfully, now make the actual API call to provider
     const startTime = Date.now();
     let apiResponse: Response;
     let responseText: string = '';
     let errorMessage: string | null = null;
 
     try {
-      // Check if API uses double relay or direct relay
-      if (!api.isDirectRelay && api.internalEndpoint) {
-        // DOUBLE RELAY: Call our internal relay endpoint
-        const internalUrl = `http://localhost:3000${api.internalEndpoint}/${id}/relay`;
+      // Prepare request to actual provider endpoint (hidden from developers)
+      const apiUrl = new URL(api.endpoint);
 
-        const internalRequestOptions = {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Internal-Auth': process.env.INTERNAL_RELAY_SECRET || 'internal-secret-key',
-            'X-Developer-Address': developerAddress
-          },
-          body: JSON.stringify({
-            tokenHash,
-            method,
-            headers,
-            params: queryParams,
-            body: requestBody,
-            developerAddress
-          })
-        };
-
-        console.log(`🔄 Using double relay: ${internalUrl}`);
-        apiResponse = await fetch(internalUrl, internalRequestOptions);
-        responseText = await apiResponse.text();
-
-        // If internal relay call fails, try fallback endpoint if configured
-        if (!apiResponse.ok && api.fallbackEndpoint && api.fallbackEndpoint !== api.internalEndpoint) {
-          console.log(`🔄 Trying fallback endpoint: ${api.fallbackEndpoint}`);
-          const fallbackUrl = `http://localhost:3000${api.fallbackEndpoint}/${id}/relay`;
-
-          const fallbackRequestOptions = {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Internal-Auth': process.env.INTERNAL_RELAY_SECRET || 'internal-secret-key',
-              'X-Developer-Address': developerAddress
-            },
-            body: JSON.stringify({
-              tokenHash,
-              method,
-              headers,
-              params: queryParams,
-              body: requestBody,
-              developerAddress
-            })
-          };
-
-          apiResponse = await fetch(fallbackUrl, fallbackRequestOptions);
-          responseText = await apiResponse.text();
-        }
-
-      } else {
-        // DIRECT RELAY: Call provider endpoint directly (original logic)
-        console.log(`🔄 Using direct relay: ${api.endpoint}`);
-
-        // Prepare request to actual API endpoint
-        const apiUrl = new URL(api.endpoint);
-
-        // Add query parameters if provided
-        if (queryParams && Object.keys(queryParams).length > 0) {
-          Object.entries(queryParams).forEach(([key, value]) => {
-            apiUrl.searchParams.append(key, String(value));
-          });
-        }
-
-        // Prepare headers for the actual API call
-        const requestHeaders = {
-          ...headers,
-          'User-Agent': 'Furo-Gateway/1.0',
-          'X-Furo-Api-Id': api.id,
-          'X-Furo-Request-Id': `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-        };
-
-        // Remove Furo-specific headers
-        delete requestHeaders['X-Developer-Address'];
-        delete requestHeaders['X-PAYMENT'];
-        delete requestHeaders['X-Token-Hash'];
-
-        // Prepare request options
-        const requestOptions: RequestInit = {
-          method: method.toUpperCase(),
-          headers: requestHeaders
-        };
-
-        // Add body for POST/PUT requests
-        if (requestBody && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-          if (typeof requestBody === 'string') {
-            requestOptions.body = requestBody;
-            requestHeaders['Content-Type'] = 'application/json';
-          } else {
-            requestOptions.body = JSON.stringify(requestBody);
-            requestHeaders['Content-Type'] = 'application/json';
-          }
-        }
-
-        // Make the actual API call
-        apiResponse = await fetch(apiUrl.toString(), requestOptions);
-        responseText = await apiResponse.text();
+      // Add query parameters if provided
+      if (queryParams && Object.keys(queryParams).length > 0) {
+        Object.entries(queryParams).forEach(([key, value]) => {
+          apiUrl.searchParams.append(key, String(value));
+        });
       }
+
+      // Prepare headers for the provider API call
+      const requestHeaders = {
+        // Include internal authentication if configured
+        ...(api.internalAuth ? JSON.parse(JSON.stringify(api.internalAuth)) : {}),
+        // Pass through original headers (except internal ones)
+        ...headers,
+        'User-Agent': 'Furo-Internal-Relay/1.0',
+        'X-Furo-Api-Id': api.id,
+        'X-Furo-Request-Id': `relay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        'X-Furo-Token-Hash': tokenHash,
+        'X-Furo-Internal': 'true'
+      };
+
+      // Remove any internal headers that shouldn't reach provider
+      delete requestHeaders['X-Internal-Auth'];
+      delete requestHeaders['X-Developer-Address'];
+      delete requestHeaders['X-Token-Hash'];
+
+      // Prepare request options
+      const requestOptions: RequestInit = {
+        method: method.toUpperCase(),
+        headers: requestHeaders
+      };
+
+      // Add body for POST/PUT requests
+      if (requestBody && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+        if (typeof requestBody === 'string') {
+          requestOptions.body = requestBody;
+          requestHeaders['Content-Type'] = 'application/json';
+        } else {
+          requestOptions.body = JSON.stringify(requestBody);
+          requestHeaders['Content-Type'] = 'application/json';
+        }
+      }
+
+      // Make the actual API call to provider's hidden endpoint
+      apiResponse = await fetch(apiUrl.toString(), requestOptions);
+      responseText = await apiResponse.text();
 
       const responseTime = Date.now() - startTime;
       const responseSize = apiResponse.headers.get('content-length')
@@ -302,8 +282,8 @@ export async function POST(
         }
       });
 
-      // Prepare response to client
-      const clientResponse = {
+      // Prepare response to internal caller
+      const internalResponse = {
         success,
         data: success ? (responseText ? JSON.parse(responseText) : null) : responseText,
         status: apiResponse.status,
@@ -317,11 +297,13 @@ export async function POST(
           responseTime,
           processedAt: new Date().toISOString(),
           tokenConsumed: true,
-          tokenHash
+          tokenHash,
+          relayType: 'double',
+          internalEndpoint: api.internalEndpoint
         }
       };
 
-      return NextResponse.json(clientResponse);
+      return NextResponse.json(internalResponse);
 
     } catch (fetchError) {
       const responseTime = Date.now() - startTime;
@@ -342,7 +324,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to call API endpoint',
+          error: 'Failed to call provider endpoint',
           details: errorMessage,
           meta: {
             apiId: api.id,
@@ -350,7 +332,9 @@ export async function POST(
             provider: api.Provider.name,
             responseTime,
             tokenConsumed: true,
-            tokenHash
+            tokenHash,
+            relayType: 'double',
+            internalEndpoint: api.internalEndpoint
           }
         },
         { status: 502 } // Bad Gateway
@@ -358,11 +342,11 @@ export async function POST(
     }
 
   } catch (error) {
-    console.error('Error in API call route:', error);
+    console.error('Error in internal relay route:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Internal server error',
+        error: 'Internal server error in relay',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

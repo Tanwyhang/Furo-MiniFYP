@@ -6,10 +6,10 @@ const prisma = new PrismaClient();
 // GET /api/apis/[id] - Get a specific API
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const api = await prisma.api.findUnique({
       where: { id },
@@ -29,13 +29,13 @@ export async function GET(
         Review: {
           where: { isVerified: true },
           orderBy: { helpfulCount: 'desc' },
-          include: {
-            reviewer: {
-              select: {
-                name: true,
-                avatarUrl: true
-              }
-            }
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            helpfulCount: true,
+            createdAt: true,
+            reviewerAddress: true
           }
         },
         Payment: {
@@ -98,10 +98,10 @@ export async function GET(
 // PUT /api/apis/[id] - Update an API
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const {
       name,
@@ -114,7 +114,13 @@ export async function PUT(
       documentation,
       headers,
       queryParams,
-      isActive
+      isActive,
+      // Double relay fields
+      internalEndpoint,
+      internalAuth,
+      relayConfiguration,
+      isDirectRelay,
+      fallbackEndpoint
     } = body;
 
     // Check if API exists
@@ -157,6 +163,12 @@ export async function PUT(
         ...(headers !== undefined && { headers: headers || null }),
         ...(queryParams !== undefined && { queryParams: queryParams || null }),
         ...(isActive !== undefined && { isActive }),
+        // Double relay fields
+        ...(internalEndpoint !== undefined && { internalEndpoint: internalEndpoint?.trim() || null }),
+        ...(internalAuth !== undefined && { internalAuth: internalAuth || null }),
+        ...(relayConfiguration !== undefined && { relayConfiguration: relayConfiguration || null }),
+        ...(isDirectRelay !== undefined && { isDirectRelay }),
+        ...(fallbackEndpoint !== undefined && { fallbackEndpoint: fallbackEndpoint?.trim() || null }),
         updatedAt: new Date()
       },
       include: {
@@ -194,10 +206,10 @@ export async function PUT(
 // DELETE /api/apis/[id] - Delete an API
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Check if API exists
     const existingApi = await prisma.api.findUnique({
