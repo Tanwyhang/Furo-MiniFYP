@@ -78,12 +78,10 @@ model ApiKey {
 
 model Favorite {
   id         String   @id
-  userId     String
-  apiId      String
-  providerId String
+  userId     String   // Developer wallet address who favorited the API
+  apiId      String   // ID of the favorited API
   createdAt  DateTime @default(now())
   Api        Api      @relation(fields: [apiId], references: [id], onDelete: Cascade)
-  Provider   Provider @relation(fields: [userId], references: [walletAddress], onDelete: Cascade)
 
   @@unique([userId, apiId])
   @@index([apiId])
@@ -133,7 +131,6 @@ model Provider {
   updatedAt       DateTime
   Api             Api[]
   ApiKey          ApiKey[]
-  Favorite        Favorite[]
   Payment         Payment[]
   Token           Token[]
 

@@ -75,7 +75,7 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
   );
 
   return isActive ? (
-    <ActiveCard href={`/api/${api.id}`}>
+    <ActiveCard href={`/api/${api.id}`} isFavorited={isFavorited}>
       {cardContent}
     </ActiveCard>
   ) : (
@@ -154,11 +154,16 @@ function ActionsSection({
     <div className="flex items-center gap-3">
       {isConnected && (
         <button
-          onClick={() => onToggleFavorite?.(api.id, !isFavorited)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent link navigation
+            e.preventDefault(); // Prevent default link behavior
+            onToggleFavorite?.(api.id, !isFavorited);
+          }}
+          className="text-muted-foreground hover:text-red-500 transition-colors z-10 relative"
           aria-label="Toggle favorite"
+          title={isFavorited ? "Remove from favorites" : "Add to favorites"}
         >
-          <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current text-red-500' : ''}`} />
+          <Heart className={`h-4 w-4 transition-all duration-300 ease-in-out transform ${isFavorited ? 'fill-current text-red-500 scale-110' : 'hover:scale-110'}`} />
         </button>
       )}
 
@@ -175,13 +180,15 @@ function ActionsSection({
   );
 }
 
-function ActiveCard({ href, children }: { href: string; children: React.ReactNode }) {
+function ActiveCard({ href, children, isFavorited }: { href: string; children: React.ReactNode; isFavorited?: boolean }) {
   return (
-    <Link href={href}>
-      <Card className="p-6 border shadow-sm hover:shadow-md hover:border-white cursor-pointer transition-all duration-300 ease-in-out bg-card">
+    <Card className={`p-6 border shadow-sm hover:shadow-md hover:border-white transition-all duration-300 ease-in-out bg-card group relative ${
+      isFavorited ? 'border-red-200 shadow-red-100' : ''
+    }`}>
+      <Link href={href} className="block">
         {children}
-      </Card>
-    </Link>
+      </Link>
+    </Card>
   );
 }
 

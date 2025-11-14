@@ -9,6 +9,7 @@ import { furoClient, API } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { getUserFavorites, addFavorite, removeFavorite } from '@/lib/api/favorites';
 
 interface MarketplaceContentProps {
   selectedCategory: string;
@@ -26,10 +27,28 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
   // Use Wagmi hooks to check wallet connection
   const { address, isConnected } = useAccount();
 
+  // Load user favorites when wallet is connected
+  const loadUserFavorites = async () => {
+    if (!address) return;
+
+    try {
+      const response = await getUserFavorites(address);
+      if (response.success && response.data) {
+        setFavorites(new Set(response.data.apiIds));
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+    }
+  };
+
   // Set developer address when wallet is connected
   useEffect(() => {
     if (address) {
       furoClient.setDeveloperAddress(address);
+      loadUserFavorites();
+    } else {
+      // Clear favorites when wallet disconnects
+      setFavorites(new Set());
     }
   }, [address]);
 
@@ -55,7 +74,22 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
 
       if (response.success) {
         const newAPIs = response.data;
-        setApis(prev => append ? [...prev, ...newAPIs] : newAPIs);
+
+        // Sort APIs: favorited ones first, then others
+        const sortedAPIs = newAPIs.sort((a, b) => {
+          const aFavorited = favorites.has(a.id);
+          const bFavorited = favorites.has(b.id);
+
+          // If both are favorited or both are not, maintain original order
+          if (aFavorited === bFavorited) {
+            return 0;
+          }
+
+          // Favorited APIs come first
+          return bFavorited - aFavorited;
+        });
+
+        setApis(prev => append ? [...prev, ...sortedAPIs] : sortedAPIs);
         setHasMore(response.meta.hasNext);
         setPage(pageNum);
       } else {
@@ -68,6 +102,27 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
       setIsLoading(false);
     }
   };
+
+  // Re-sort APIs when favorites change
+  useEffect(() => {
+    if (apis.length > 0) {
+      // Sort APIs: favorited ones first, then others
+      const sortedAPIs = [...apis].sort((a, b) => {
+        const aFavorited = favorites.has(a.id);
+        const bFavorited = favorites.has(b.id);
+
+        // If both are favorited or both are not, maintain original order
+        if (aFavorited === bFavorited) {
+          return 0;
+        }
+
+        // Favorited APIs come first
+        return bFavorited - aFavorited;
+      });
+
+      setApis(sortedAPIs);
+    }
+  }, [favorites]);
 
   // Initial load and category change
   useEffect(() => {
@@ -99,8 +154,7 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
     if (!isConnected || !address) return;
 
     try {
-      await furoClient.toggleFavorite(apiId);
-
+      // Optimistic update
       setFavorites(prev => {
         const newFavorites = new Set(prev);
         if (favorited) {
@@ -110,7 +164,36 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
         }
         return newFavorites;
       });
+
+      // Call API
+      const response = favorited
+        ? await addFavorite(apiId, address)
+        : await removeFavorite(apiId, address);
+
+      // If API call failed, revert the optimistic update
+      if (!response.success) {
+        setFavorites(prev => {
+          const newFavorites = new Set(prev);
+          if (favorited) {
+            newFavorites.delete(apiId);
+          } else {
+            newFavorites.add(apiId);
+          }
+          return newFavorites;
+        });
+        console.error('Failed to toggle favorite:', response.error);
+      }
     } catch (error) {
+      // Revert optimistic update on error
+      setFavorites(prev => {
+        const newFavorites = new Set(prev);
+        if (favorited) {
+          newFavorites.delete(apiId);
+        } else {
+          newFavorites.add(apiId);
+        }
+        return newFavorites;
+      });
       console.error('Failed to toggle favorite:', error);
     }
   };
@@ -186,15 +269,22 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
       )}
 
       {/* API List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {filteredAPIs.map((api) => (
-          <APICard
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all duration-500 ease-in-out">
+        {filteredAPIs.map((api, index) => (
+          <div
             key={api.id}
-            api={transformAPIForCard(api)}
-            isFavorited={favorites.has(api.id)}
-            onToggleFavorite={handleToggleFavorite}
-            isConnected={isConnected}
-          />
+            className="transform transition-all duration-500 ease-out"
+            style={{
+              transitionDelay: `${index * 50}ms`, // Staggered animation
+            }}
+          >
+            <APICard
+              api={transformAPIForCard(api)}
+              isFavorited={favorites.has(api.id)}
+              onToggleFavorite={handleToggleFavorite}
+              isConnected={isConnected}
+            />
+          </div>
         ))}
       </div>
 
