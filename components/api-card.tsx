@@ -20,7 +20,7 @@ interface API {
   provider: string;
   providerId: string;
   publicPath: string;
-  documentation?: any;
+  documentation?: Record<string, unknown> | string | null;
   favoriteCount?: number;
 }
 
@@ -40,9 +40,16 @@ export function APICard({ api, isFavorited = false, onToggleFavorite, isConnecte
       {/* Header */}
       <div className="mb-4 flex-grow">
         <div className="flex items-start justify-between mb-2">
-          <CardTitle className="text-lg font-medium text-foreground">
-            {api.name}
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg font-medium text-foreground">
+              {api.name}
+            </CardTitle>
+            {api.status === 'inactive' && (
+              <Badge variant="destructive" className="text-xs">
+                Inactive
+              </Badge>
+            )}
+          </div>
           <StatusIndicator status={api.status} />
         </div>
         <p className="text-sm text-muted-foreground line-clamp-3 h-[3.5rem] leading-5">
@@ -97,7 +104,7 @@ function StatusIndicator({ status }: { status: string }) {
   return (
     <div
       className={`w-2 h-2 rounded-full ${
-        status === 'active' ? 'bg-green-500' : 'bg-gray-400'
+        status === 'active' ? 'bg-green-500' : 'bg-red-500'
       }`}
       aria-label={`API is ${status}`}
     />
@@ -105,7 +112,7 @@ function StatusIndicator({ status }: { status: string }) {
 }
 
 function MetricIcon({ icon: Icon, value, label }: {
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   value: number | string;
   label: string;
 }) {
@@ -121,8 +128,11 @@ function PriceDisplay({ api, isActive }: { api: API; isActive: boolean }) {
   // Try to format the price, fall back to original if it fails
   const formattedPrice = (() => {
     try {
-      return formatEther(api.price as `0x${string}`);
+      // Convert price string to bigint, then format as ETH
+      const priceBigInt = BigInt(api.price);
+      return formatEther(priceBigInt);
     } catch {
+      // If conversion fails, return the original price string
       return api.price;
     }
   })();
@@ -158,7 +168,7 @@ function ActionsSection({
   onToggleFavorite?: (apiId: string, favorited: boolean) => void;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center">
       {isConnected && (
         <button
           onClick={(e) => {
@@ -166,11 +176,11 @@ function ActionsSection({
             e.preventDefault(); // Prevent default link behavior
             onToggleFavorite?.(api.id, !isFavorited);
           }}
-          className="text-muted-foreground hover:text-red-500 transition-colors z-10 relative"
+          className="text-muted-foreground hover:text-blue-500 transition-colors z-10 relative"
           aria-label="Toggle favorite"
           title={isFavorited ? "Remove from favorites" : "Add to favorites"}
         >
-          <Heart className={`h-4 w-4 transition-all duration-300 ease-in-out transform ${isFavorited ? 'fill-current text-red-500 scale-110' : 'hover:scale-110'}`} />
+          <Heart className={`h-4 w-4 transition-all duration-300 ease-in-out transform ${isFavorited ? 'fill-current text-rose-400 scale-110' : 'hover:scale-110'}`} />
         </button>
       )}
 
@@ -190,7 +200,7 @@ function ActionsSection({
 function ActiveCard({ href, children, isFavorited }: { href: string; children: React.ReactNode; isFavorited?: boolean }) {
   return (
     <Card className={`h-full p-6 border shadow-sm hover:shadow-md hover:border-white transition-all duration-300 ease-in-out bg-card group relative flex flex-col ${
-      isFavorited ? 'border-red-200 shadow-red-100' : ''
+      isFavorited ? 'border-slate-400' : ''
     }`}>
       <Link href={href} className="block h-full flex flex-col">
         {children}

@@ -54,12 +54,13 @@ export default function APIDetailsPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [apiParams, setApiParams] = useState<Record<string, any>>({});
 
-  // Placeholder for payment functionality
-  const isPaymentLoading = false;
-  const isProcessingPayment = false;
-  const currentPayment = null;
-  const transactionHash = null;
-  const paymentError = null;
+  // Payment state
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [currentPayment, setCurrentPayment] = useState<any>(null);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [x402Response, setX402Response] = useState<any>(null);
   const isReady = isConnected;
 
   // Set developer address when wallet is connected
@@ -96,9 +97,89 @@ export default function APIDetailsPage() {
   // }, [address]);
 
   // Handlers
-  const handlePayAndCall = () => {
+  const handlePayAndCall = async () => {
     if (!api || !isReady) return;
-    setIsPaymentModalOpen(true);
+
+    setIsPaymentLoading(true);
+    setPaymentError(null);
+
+    try {
+      // Step 1: Try to call the API directly (should trigger 402 Payment Required)
+      const response = await fetch(`/api/apis/${api.id}/call`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Developer-Address': address!,
+        },
+        body: JSON.stringify({
+          params: apiParams,
+          headers: {},
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 402) {
+        // Step 2: Payment required - show payment modal with details
+        console.log('💳 Payment required:', data);
+        setX402Response(data);
+        setCurrentPayment(data.payment);
+        setIsPaymentModalOpen(true);
+      } else if (data.success) {
+        // Step 3: API call succeeded (unlikely without payment, but handle it)
+        setAPICallResult(data);
+      } else {
+        // Step 4: Other error
+        throw new Error(data.error || 'API call failed');
+      }
+    } catch (error: any) {
+      console.error('API call error:', error);
+      setPaymentError(error.message);
+    } finally {
+      setIsPaymentLoading(false);
+    }
+  };
+
+  const handleRetryWithPayment = async (txHash: string) => {
+    if (!api || !isReady) return;
+
+    setIsProcessingPayment(true);
+    setPaymentError(null);
+
+    try {
+      // Step 5: Retry API call with transaction hash
+      const response = await fetch(`/api/apis/${api.id}/call`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Developer-Address': address!,
+          'X-Payment': txHash,
+        },
+        body: JSON.stringify({
+          params: apiParams,
+          headers: {},
+          transactionHash: txHash,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Step 6: API call succeeded with payment
+        setAPICallResult(data);
+        setTransactionHash(txHash);
+        setIsPaymentModalOpen(false);
+        console.log('✅ API call successful with payment');
+      } else {
+        // Step 7: Payment or API call failed
+        throw new Error(data.error || 'API call failed after payment');
+      }
+    } catch (error: any) {
+      console.error('Payment retry error:', error);
+      setPaymentError(error.message);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleBackClick = () => {

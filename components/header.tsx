@@ -3,7 +3,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, ShoppingBag } from 'lucide-react';
+import { Search, Plus, ShoppingBag, BarChart3, Package } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -66,9 +66,26 @@ export function Header({ theme = 'light' }: HeaderProps) {
           <Link href="/list-api">
             <Button variant="outline" size="sm" className={buttonClasses}>
               <Plus className="h-4 w-4 mr-2" />
-              List API
+              Add your APIs
             </Button>
           </Link>
+
+          {/* Show Dashboard button for connected users */}
+          <Link href="/dashboard">
+            <Button variant="outline" size="sm" className={buttonClasses}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+          </Link>
+
+          {/* Show Purchased APIs button for connected users */}
+          <Link href="/purchased-apis">
+            <Button variant="outline" size="sm" className={buttonClasses}>
+              <Package className="h-4 w-4 mr-2" />
+              Purchased APIs
+            </Button>
+          </Link>
+
           <ConnectButton />
         </div>
       </div>

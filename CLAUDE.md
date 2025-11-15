@@ -570,3 +570,5 @@ The **ApiKey** model enables providers to create and manage programmatic access 
 - use local db
 - dont run pnpm dev after u make changes
 - im running port 3000 pnpm run dev on my own terminal, so you shouldnt run for me
+- update: i renamed /markdown directory to /docs
+- dont use any emojis

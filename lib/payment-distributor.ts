@@ -12,9 +12,10 @@ const prisma = new PrismaClient();
 export interface DistributionRequest {
   paymentId: string;
   providerId: string;
-  totalAmount: string; // in wei
+  totalAmount: string; // Amount to distribute to provider (after platform fees)
   currency: string;
   transactionHash: string; // Original payment transaction hash
+  network?: string; // Network for the transaction
 }
 
 export interface DistributionResult {
@@ -29,7 +30,7 @@ export interface DistributionResult {
  * Distributes payment to provider wallet on-chain
  *
  * This function:
- * 1. Calculates provider share after platform fee
+ * 1. Receives pre-calculated provider amount (after platform fees)
  * 2. Creates on-chain transaction to provider wallet
  * 3. Records distribution in database
  * 4. Updates provider earnings tracking
@@ -62,33 +63,35 @@ export async function distributePaymentToProvider(
       };
     }
 
-    // Calculate platform fee and provider share
-    const platformFeePercentage = 0.05; // 5% platform fee
-    const totalAmountBigInt = BigInt(request.totalAmount);
-    const platformFee = (totalAmountBigInt * BigInt(Math.floor(platformFeePercentage * 100))) / BigInt(100);
-    const providerShare = totalAmountBigInt - platformFee;
+    // The amount passed is already the provider's share (after platform fees)
+    const providerShare = BigInt(request.totalAmount);
 
     if (providerShare <= 0) {
       return {
         success: false,
-        error: 'Amount too small to distribute after fees'
+        error: 'Amount too small to distribute'
       };
     }
+
+    // Log platform fee information for transparency
+    const platformFeePercentage = parseInt(process.env.PLATFORM_FEE_PERCENTAGE || '3');
+    console.log(`💰 Distribution details for ${request.paymentId}:`);
+    console.log(`  Provider Share: ${providerShare.toString()} ${request.currency}`);
+    console.log(`  Platform Fee Rate: ${platformFeePercentage}% (calculated in payment processing)`);
 
     // Skip on-chain distribution for testnet/development mode
     if (process.env.NODE_ENV === 'development' || process.env.SKIP_ONCHAIN_DISTRIBUTION === 'true') {
       console.log('🧪 Skipping on-chain distribution (development mode)');
       console.log(`💰 Would distribute: ${providerShare.toString()} wei to ${provider.walletAddress}`);
-      console.log(`🏦 Platform fee: ${platformFee.toString()} wei`);
 
       // Still record the distribution in database
       await recordDistribution({
         paymentId: request.paymentId,
         providerId: request.providerId,
         providerAddress: provider.walletAddress,
-        originalAmount: totalAmountBigInt.toString(),
+        originalAmount: request.totalAmount, // This is already the provider share
         providerAmount: providerShare.toString(),
-        platformFee: platformFee.toString(),
+        platformFee: '0', // Platform fee handled separately in payment processing
         transactionHash: 'dev_mode_simulation',
         status: 'simulated'
       });
@@ -121,15 +124,15 @@ export async function distributePaymentToProvider(
       paymentId: request.paymentId,
       providerId: request.providerId,
       providerAddress: provider.walletAddress,
-      originalAmount: totalAmountBigInt.toString(),
+      originalAmount: request.totalAmount, // This is already the provider share
       providerAmount: providerShare.toString(),
-      platformFee: platformFee.toString(),
+      platformFee: '0', // Platform fee handled separately in payment processing
       transactionHash: distributionResult.txHash!,
       status: 'completed'
     });
 
     console.log(`✅ Distributed ${providerShare.toString()} wei to provider ${provider.name} (${provider.walletAddress})`);
-    console.log(`🏦 Platform fee: ${platformFee.toString()} wei`);
+    console.log(`🏦 Platform fee already handled in payment processing (${platformFeePercentage}%)`);
 
     return {
       success: true,
