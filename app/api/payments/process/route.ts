@@ -124,6 +124,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // For FURO wallet processing, verify payment is to FURO wallet address
+    const furoWalletAddress = process.env.NEXT_PUBLIC_FURO_WALLET_ADDRESS;
+    if (furoWalletAddress && recipientAddress.toLowerCase() !== furoWalletAddress.toLowerCase()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Payment must be sent to FURO platform wallet: ${furoWalletAddress}`
+        },
+        { status: 400 }
+      );
+    }
+
     // Create payment record with fee breakdown
     const payment = await prisma.payment.create({
       data: {

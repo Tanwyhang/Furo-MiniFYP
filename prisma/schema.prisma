@@ -43,6 +43,7 @@ model Api {
   Review              Review[]
   Token               Token[]
   UsageLog            UsageLog[]
+  PurchasedApi        PurchasedApi[]
 
   @@index([category])
   @@index([isActive])
@@ -133,6 +134,7 @@ model Provider {
   ApiKey          ApiKey[]
   Payment         Payment[]
   Token           Token[]
+  PurchasedApi    PurchasedApi[]
 
   @@index([isActive])
   @@index([reputationScore])
@@ -182,6 +184,28 @@ model Token {
   @@index([paymentId])
   @@index([providerId])
   @@index([tokenHash])
+}
+
+model PurchasedApi {
+  id                 String   @id
+  apiId              String
+  developerAddress   String
+  providerId         String
+  transactionHash    String
+  paymentAmount      String
+  status             String   @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  Api                Api      @relation(fields: [apiId], references: [id], onDelete: Cascade)
+  Provider           Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([developerAddress])
+  @@index([apiId])
+  @@index([providerId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([transactionHash])
 }
 
 model UsageLog {

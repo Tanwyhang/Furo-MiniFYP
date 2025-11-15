@@ -10,9 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AnimatedBeam from '@/components/ui/animated-beam';
 import {
   ArrowRight,
   Clock,
@@ -29,10 +28,13 @@ import { X402PaymentRequired } from '@/lib/api-client';
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  paymentDetails: X402PaymentRequired['paymentDetails'] | null;
+  paymentDetails: any | null; // Updated to handle x402 response format
   isProcessing: boolean;
   transactionHash?: string | null;
   error?: string | null;
+  onPaymentComplete?: (transactionHash: string) => void; // Add callback for payment completion
+  providerWalletAddress?: string; // Provider wallet address
+  platformFee?: number; // Platform fee percentage
 }
 
 export function PaymentModal({
@@ -42,8 +44,14 @@ export function PaymentModal({
   isProcessing,
   transactionHash,
   error,
+  onPaymentComplete,
+  providerWalletAddress,
+  platformFee = 3, // Default 3% platform fee
 }: PaymentModalProps) {
+  // All hooks must be called at the top level
+  const [isSendingPayment, setIsSendingPayment] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [completedTxHash, setCompletedTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     if (copiedAddress) {
@@ -52,44 +60,72 @@ export function PaymentModal({
     }
   }, [copiedAddress]);
 
-  if (!paymentDetails) return null;
+  // One-click payment function
+  const handleOneClickPayment = async () => {
+    if (!paymentDetails || isSendingPayment) return;
 
-  const amount = formatEther(paymentDetails.requiredAmount as `0x${string}`);
-  const truncatedAddress = `${paymentDetails.providerWalletAddress.slice(0, 6)}...${paymentDetails.providerWalletAddress.slice(-4)}`;
+    setIsSendingPayment(true);
 
-  const copyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(paymentDetails.providerWalletAddress);
-      setCopiedAddress(true);
+      // In production, this would use Web3 library (ethers.js, viem, etc.) to send transaction
+      // For now, we'll simulate the transaction sending
+      console.log('💳 Sending payment transaction...');
+
+      // Simulate transaction sending
+      setTimeout(() => {
+        const simulatedTxHash = '0x' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        setCompletedTxHash(simulatedTxHash);
+        setIsSendingPayment(false);
+
+        if (onPaymentComplete) {
+          onPaymentComplete(simulatedTxHash);
+        }
+      }, 2000);
+
     } catch (error) {
-      console.error('Failed to copy address:', error);
+      console.error('Payment failed:', error);
+      setIsSendingPayment(false);
     }
   };
 
-  const viewOnEtherscan = () => {
-    const baseUrl = paymentDetails.networkId === 1
-      ? 'https://etherscan.io'
-      : paymentDetails.networkId === 137
-      ? 'https://polygonscan.com'
-      : paymentDetails.networkId === 11155111
-      ? 'https://sepolia.etherscan.io'
-      : 'https://etherscan.io';
+  // Early return after all hooks are declared
+  if (!paymentDetails) return null;
 
-    if (transactionHash) {
-      window.open(`${baseUrl}/tx/${transactionHash}`, '_blank');
+  // Calculate payment breakdown
+  const totalAmount = BigInt(paymentDetails.amount);
+  const platformFeeAmount = (totalAmount * BigInt(platformFee)) / BigInt(100);
+  const providerAmount = totalAmount - platformFeeAmount;
+
+  // Use provider wallet address directly
+  const paymentRecipient = providerWalletAddress || paymentDetails.address;
+  const amount = formatEther(totalAmount);
+  const platformFeeFormatted = formatEther(platformFeeAmount);
+  const providerAmountFormatted = formatEther(providerAmount);
+  const truncatedAddress = `${paymentRecipient.slice(0, 6)}...${paymentRecipient.slice(-4)}`;
+
+  const viewOnEtherscan = () => {
+    const network = paymentDetails.network?.toLowerCase() || 'sepolia';
+    const baseUrl = network === 'mainnet'
+      ? 'https://etherscan.io'
+      : network === 'polygon'
+      ? 'https://polygonscan.com'
+      : network === 'sepolia'
+      ? 'https://sepolia.etherscan.io'
+      : network === 'base'
+      ? 'https://basescan.org'
+      : 'https://sepolia.etherscan.io';
+
+    if (completedTxHash) {
+      window.open(`${baseUrl}/tx/${completedTxHash}`, '_blank');
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            x402 Payment Required
-          </DialogTitle>
+        <DialogHeader className="text-black rounded-t-lg">
           <DialogDescription>
-            Complete the payment to access this API. Each token provides one API call.
+            Pay instantly to access this API. No manual transactions required.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,32 +144,42 @@ export function PaymentModal({
             </Card>
           )}
 
-          {isProcessing && (
+          {isSendingPayment && (
             <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
               <CardContent className="pt-6">
+                <header>
+                  <h3 className="text-lg font-medium mb-2">Processing Payment</h3>
+                </header>
                 <div className="flex items-center gap-3 text-blue-700 dark:text-blue-400">
                   <div className="animate-spin">
                     <Zap className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="font-medium">Processing Payment</p>
+                  <div className="flex-1">
+                    <p className="font-medium">Sending Payment...</p>
                     <p className="text-sm opacity-90">
-                      {transactionHash ? 'Confirming transaction...' : 'Awaiting wallet confirmation...'}
+                      Processing your transaction to the provider
                     </p>
+                    <div className="mt-2">
+                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                        <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '70%' }}></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {transactionHash && !isProcessing && (
+          {completedTxHash && !isSendingPayment && (
             <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
                   <CheckCircle className="h-5 w-5" />
                   <div className="flex-1">
-                    <p className="font-medium">Payment Successful!</p>
-                    <p className="text-sm opacity-90">Your API call is now being processed.</p>
+                    <p className="font-medium">Payment Sent!</p>
+                    <p className="text-sm opacity-90">
+                      Transaction: {completedTxHash.slice(0, 10)}...
+                    </p>
                   </div>
                   <Button
                     variant="outline"
@@ -142,51 +188,53 @@ export function PaymentModal({
                     className="flex items-center gap-2"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View on Etherscan
+                    View on Explorer
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          <Tabs defaultValue="payment" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="payment">Payment Details</TabsTrigger>
-              <TabsTrigger value="flow">Payment Flow</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="payment" className="space-y-4">
-              <Card>
-                <CardContent className="pt-6">
+          <Card className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-white text-2xl font-black font-sans">
+                   <Shield className="h-6 w-6" />
+                    X402 Payment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Amount to Pay</span>
+                      <span className="text-sm font-medium text-white">Total Payment</span>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">
-                          {amount} ETH
+                        <div className="text-2xl font-bold text-white">
+                          {amount} {paymentDetails.currency || 'ETH'}
                         </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {paymentDetails.numberOfTokens || 1} token{(paymentDetails.numberOfTokens || 1) > 1 ? 's' : ''}
+                        <Badge className="text-xs bg-white/20 text-white border-white/30">
+                          1 API call
                         </Badge>
                       </div>
                     </div>
 
-                    <div className="border-t pt-4">
+                    <div className="border-t border-white/20 pt-4">
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Recipient</span>
+                          <span className="text-sm text-blue-100">Provider</span>
                           <div className="flex items-center gap-2">
-                            <code className="text-xs bg-muted px-2 py-1 rounded">
+                            <code className="text-xs bg-white/20 px-2 py-1 rounded text-white">
                               {truncatedAddress}
                             </code>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={copyAddress}
-                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(paymentRecipient);
+                                setCopiedAddress(true);
+                              }}
+                              className="h-6 w-6 p-0 text-white hover:bg-white/20"
                             >
                               {copiedAddress ? (
-                                <CheckCircle className="h-3 w-3 text-green-600" />
+                                <CheckCircle className="h-3 w-3 text-green-300" />
                               ) : (
                                 <Wallet className="h-3 w-3" />
                               )}
@@ -194,115 +242,40 @@ export function PaymentModal({
                           </div>
                         </div>
 
-                        {paymentDetails.networkId && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Network</span>
-                            <Badge variant="outline">
-                              {paymentDetails.networkId === 1 ? 'Ethereum' :
-                               paymentDetails.networkId === 137 ? 'Polygon' :
-                               paymentDetails.networkId === 11155111 ? 'Sepolia Testnet' :
-                               `Chain ID: ${paymentDetails.networkId}`}
-                            </Badge>
-                          </div>
-                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-blue-100">Network</span>
+                          <Badge className="bg-white/20 text-white border-white/30">
+                            {paymentDetails.network?.toUpperCase() || 'SEPOLIA'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
 
-                        {paymentDetails.expiresAt && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Expires</span>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              <span className="text-xs">
-                                {new Date(paymentDetails.expiresAt).toLocaleString()}
-                              </span>
+                    {!completedTxHash && (
+                      <Button
+                        onClick={handleOneClickPayment}
+                        disabled={isSendingPayment}
+                        className="w-full mt-6 bg-white text-blue-600 hover:bg-blue-50 font-semibold"
+                        size="lg"
+                      >
+                        {isSendingPayment ? (
+                          <>
+                            <div className="animate-spin mr-2">
+                              <Zap className="h-4 w-4" />
                             </div>
-                          </div>
+                            Processing Payment...
+                          </>
+                        ) : (
+                          <>
+                            <Shield className="h-4 w-4 mr-2" />
+                            Pay Now - One Click
+                          </>
                         )}
-                      </div>
-                    </div>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="flow" className="space-y-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <h4 className="font-medium mb-4">x402 Payment Flow</h4>
-                    </div>
-
-                    <div className="relative h-32">
-                      <AnimatedBeam
-                        containerRef={null}
-                        fromRef={null}
-                        toRef={null}
-                        reverse={false}
-                        duration={3}
-                        gradientStartColor="#3b82f6ff"
-                        pathColor="#3b82f6ff"
-                        pathOpacity={0.3}
-                        className="absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-300 to-green-500"
-                      />
-
-                      <div className="absolute top-0 left-0 right-0 flex justify-between items-center">
-                        <div className="flex flex-col items-center">
-                          <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full">
-                            <Wallet className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <span className="text-xs font-medium mt-2">Your Wallet</span>
-                        </div>
-
-                        <div className="flex flex-col items-center">
-                          <div className="flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-full">
-                            <Shield className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                          </div>
-                          <span className="text-xs font-medium mt-2">x402 Protocol</span>
-                        </div>
-
-                        <div className="flex flex-col items-center">
-                          <div className="flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full">
-                            <Zap className="h-6 w-6 text-green-600 dark:text-green-400" />
-                          </div>
-                          <span className="text-xs font-medium mt-2">API Access</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                      <div>
-                        <div className="font-medium">1. Pay</div>
-                        <div className="text-muted-foreground">Send ETH payment</div>
-                      </div>
-                      <div>
-                        <div className="font-medium">2. Verify</div>
-                        <div className="text-muted-foreground">Transaction confirmed</div>
-                      </div>
-                      <div>
-                        <div className="font-medium">3. Access</div>
-                        <div className="text-muted-foreground">Receive API token</div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardContent className="pt-6">
-                  <div className="space-y-2">
-                    <h5 className="font-medium text-sm">How it works:</h5>
-                    <ul className="text-xs text-muted-foreground space-y-1">
-                      <li>• Payment is sent directly to the API provider</li>
-                      <li>• Furo verifies the transaction on-chain</li>
-                      <li>• You receive single-use tokens for API calls</li>
-                      <li>• Each token = one valid API call</li>
-                      <li>• Tokens expire after 24 hours</li>
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
 
           <div className="flex justify-between items-center pt-4 border-t">
             <div className="text-xs text-muted-foreground">

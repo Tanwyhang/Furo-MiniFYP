@@ -147,35 +147,44 @@ export default function APIDetailsPage() {
     setPaymentError(null);
 
     try {
-      // Step 5: Retry API call with transaction hash
-      const response = await fetch(`/api/apis/${api.id}/call`, {
+      // Step 5: Process payment and add to purchased APIs
+      const response = await fetch(`/api/purchases/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Developer-Address': address!,
-          'X-Payment': txHash,
         },
         body: JSON.stringify({
-          params: apiParams,
-          headers: {},
+          apiId: api.id,
           transactionHash: txHash,
+          developerAddress: address,
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Step 6: API call succeeded with payment
-        setAPICallResult(data);
+        // Step 6: Payment successful, API added to purchased list
         setTransactionHash(txHash);
         setIsPaymentModalOpen(false);
-        console.log('✅ API call successful with payment');
+
+        // Show success message with API endpoint info
+        setAPICallResult({
+          success: true,
+          message: 'API successfully added to your purchased list!',
+          data: {
+            publicEndpoint: data.data.publicEndpoint,
+            tokenHash: data.data.tokenHash,
+            apiName: api.name,
+            canCallProgrammatically: true
+          }
+        });
+
+        console.log('✅ API added to purchased list');
       } else {
-        // Step 7: Payment or API call failed
-        throw new Error(data.error || 'API call failed after payment');
+        throw new Error(data.error || 'Failed to add API to purchased list');
       }
     } catch (error: any) {
-      console.error('Payment retry error:', error);
+      console.error('Purchase processing error:', error);
       setPaymentError(error.message);
     } finally {
       setIsProcessingPayment(false);
@@ -281,13 +290,63 @@ export default function APIDetailsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
                     <Shield className="h-5 w-5" />
-                    API Response
+                    Purchase Successful!
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <pre className="bg-white dark:bg-gray-900 p-4 rounded text-sm overflow-x-auto border">
-                    {JSON.stringify(apiCallResult, null, 2)}
-                  </pre>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="font-medium">{apiCallResult.message}</span>
+                    </div>
+
+                    {apiCallResult.data?.publicEndpoint && (
+                      <div className="bg-white dark:bg-gray-900 p-4 rounded border">
+                        <div className="text-sm font-medium mb-2">Public API Endpoint:</div>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 bg-muted px-2 py-1 rounded text-xs">
+                            {`${window.location.origin}/api/apis/public/${apiCallResult.data.publicEndpoint}`}
+                          </code>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/api/apis/public/${apiCallResult.data.publicEndpoint}`);
+                            }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        variant="default"
+                        onClick={() => router.push('/purchased-apis')}
+                        className="flex items-center gap-2"
+                      >
+                        <Shield className="h-4 w-4" />
+                        View Purchased APIs
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push('/purchased-apis')}
+                      >
+                        Call API Now
+                      </Button>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      <p>You can now:</p>
+                      <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>Call this API from your Purchased APIs page</li>
+                        <li>Use the public endpoint programmatically with the token hash</li>
+                        <li>Integrate it into your applications</li>
+                      </ul>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -452,6 +511,9 @@ export default function APIDetailsPage() {
         isProcessing={isProcessingPayment}
         transactionHash={transactionHash}
         error={paymentError}
+        onPaymentComplete={handleRetryWithPayment}
+        providerWalletAddress={currentPayment?.address}
+        platformFee={3} // 3% platform fee
       />
     </div>
   );

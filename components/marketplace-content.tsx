@@ -68,19 +68,18 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
     if (!address || favorites.size === 0) return;
 
     try {
-      // For favorites users, we need to load a larger dataset to ensure we have enough non-favorites
-      // For page 1, we need favorites + pageSize
-      // For page > 1, we need enough to skip favorites and get the right slice
-      let requiredLimit = pageSize;
+      // For favorites users, we need to load enough data to include all favorites and additional APIs
+      // We must ensure ALL favorites are loaded, regardless of how many there are
+      let requiredLimit;
 
       if (pageNum === 1) {
-        // Page 1: Load enough to include all favorites + regular page size
-        requiredLimit = Math.max(favorites.size + pageSize, 50);
+        // Page 1: Load enough to include ALL favorites + additional non-favorites to fill the page
+        requiredLimit = favorites.size + pageSize;
       } else {
-        // Page > 1: Load enough to skip favorites + get the requested page
-        const skipFavorites = favorites.size;
-        const additionalAPIsNeeded = skipFavorites + ((pageNum - 1) * pageSize);
-        requiredLimit = Math.max(additionalAPIsNeeded, 50);
+        // Page > 1: Load enough to skip all favorites + first page's non-favorites + current page's data
+        const firstPageNonFavorites = Math.max(0, pageSize - favorites.size);
+        const totalToSkip = favorites.size + firstPageNonFavorites + ((pageNum - 1) * pageSize);
+        requiredLimit = totalToSkip + pageSize;
       }
 
       const params: any = {

@@ -93,6 +93,8 @@ export default function PurchasedAPIsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [callingAPI, setCallingAPI] = useState<string | null>(null);
+  const [apiCallResults, setApiCallResults] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (isConnected && address) {
@@ -162,6 +164,43 @@ export default function PurchasedAPIsPage() {
 
   const truncateHash = (hash: string) => {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+  };
+
+  // Function to call API programmatically
+  const callAPI = async (api: PurchasedAPI) => {
+    if (!address) return;
+
+    setCallingAPI(api.id);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/apis/public/${api.apiEndpoint}`, {
+        method: 'GET',
+        headers: {
+          'X-Developer-Address': address,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setApiCallResults(prev => ({
+          ...prev,
+          [api.id]: { success: true, data: data.data, timestamp: new Date().toISOString() }
+        }));
+      } else {
+        setApiCallResults(prev => ({
+          ...prev,
+          [api.id]: { success: false, error: data.error, timestamp: new Date().toISOString() }
+        }));
+      }
+    } catch (error) {
+      setApiCallResults(prev => ({
+        ...prev,
+        [api.id]: { success: false, error: error instanceof Error ? error.message : 'Unknown error', timestamp: new Date().toISOString() }
+      }));
+    } finally {
+      setCallingAPI(null);
+    }
   };
 
   if (!isConnected) {
@@ -369,14 +408,66 @@ export default function PurchasedAPIsPage() {
                             </div>
                           </div>
 
+                          {/* API Call Results */}
+                          {apiCallResults[api.id] && (
+                            <div className={`p-3 rounded-lg mb-3 ${apiCallResults[api.id].success ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : 'bg-red-50 dark:bg-red-950/20 border border-red-200'}`}>
+                              <div className="flex items-center gap-2 text-sm">
+                                {apiCallResults[api.id].success ? (
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                )}
+                                <span className={apiCallResults[api.id].success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
+                                  {apiCallResults[api.id].success ? 'API Call Successful' : 'API Call Failed'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {apiCallResults[api.id].timestamp}
+                              </div>
+                              {apiCallResults[api.id].success && apiCallResults[api.id].data && (
+                                <div className="mt-2">
+                                  <pre className="text-xs bg-white dark:bg-gray-900 p-2 rounded border overflow-x-auto">
+                                    {JSON.stringify(apiCallResults[api.id].data, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                              {!apiCallResults[api.id].success && (
+                                <div className="mt-1 text-xs text-red-600">
+                                  Error: {apiCallResults[api.id].error}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Action Buttons */}
                           <div className="flex items-center gap-3 pt-4 border-t">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => callAPI(api)}
+                              disabled={callingAPI === api.id || api.status === 'expired'}
+                              className="flex items-center gap-2"
+                            >
+                              {callingAPI === api.id ? (
+                                <>
+                                  <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full" />
+                                  Calling...
+                                </>
+                              ) : (
+                                <>
+                                  <BarChart3 className="h-4 w-4" />
+                                  Call API
+                                </>
+                              )}
+                            </Button>
+
                             <Link href={`/api/${api.apiId}`}>
                               <Button variant="outline" size="sm">
                                 <Eye className="h-4 w-4 mr-1" />
-                                View API
+                                View Details
                               </Button>
                             </Link>
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -385,12 +476,54 @@ export default function PurchasedAPIsPage() {
                               <ExternalLink className="h-4 w-4 mr-1" />
                               Transaction
                             </Button>
-                            {api.status === 'expired' && api.tokens.total > 0 && (
+
+                            {api.status === 'expired' && (
                               <Badge variant="destructive" className="ml-auto">
                                 <AlertCircle className="h-3 w-3 mr-1" />
-                                All tokens expired
+                                Expired
                               </Badge>
                             )}
+                          </div>
+
+                          {/* Programmatic Access Info */}
+                          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <div className="flex items-center gap-2 text-sm mb-2">
+                              <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              <span className="font-medium text-blue-700 dark:text-blue-300">Programmatic Access</span>
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Endpoint:</span>
+                                <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded">
+                                  {api.apiEndpoint}
+                                </code>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Method:</span>
+                                <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded">
+                                  GET
+                                </code>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Auth Header:</span>
+                                <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs">
+                                  X-Developer-Address
+                                </code>
+                              </div>
+                              <div className="mt-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const code = `curl -H "X-Developer-Address: ${address}" "${window.location.origin}/api/apis/public/${api.apiEndpoint}"`;
+                                    navigator.clipboard.writeText(code);
+                                  }}
+                                  className="text-xs"
+                                >
+                                  Copy cURL Command
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
