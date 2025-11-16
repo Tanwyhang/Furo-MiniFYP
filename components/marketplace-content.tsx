@@ -223,8 +223,12 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
         ? await addFavorite(apiId, address)
         : await removeFavorite(apiId, address);
 
-      // If API call failed, revert the optimistic update
-      if (!response.success) {
+      // If API call succeeded, force a refetch to get updated favorite counts
+      if (response.success) {
+        // Force immediate refetch of current page to get updated favorite counts
+        await loadAPIs(currentPage);
+      } else {
+        // If API call failed, revert the optimistic update
         setFavorites(prev => {
           const newFavorites = new Set(prev);
           if (favorited) {

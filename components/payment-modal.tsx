@@ -60,6 +60,15 @@ export function PaymentModal({
     }
   }, [copiedAddress]);
 
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setCompletedTxHash(null);
+      setIsSendingPayment(false);
+      setCopiedAddress(false);
+    }
+  }, [isOpen]);
+
   // One-click payment function
   const handleOneClickPayment = async () => {
     if (!paymentDetails || isSendingPayment) return;
@@ -124,6 +133,10 @@ export function PaymentModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader className="text-black rounded-t-lg">
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            One-Click Payment
+          </DialogTitle>
           <DialogDescription>
             Pay instantly to access this API. No manual transactions required.
           </DialogDescription>
@@ -132,7 +145,7 @@ export function PaymentModal({
         <div className="space-y-6">
           {error && (
             <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
                   <AlertTriangle className="h-5 w-5" />
                   <div>
@@ -172,7 +185,7 @@ export function PaymentModal({
 
           {completedTxHash && !isSendingPayment && (
             <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
                   <CheckCircle className="h-5 w-5" />
                   <div className="flex-1">

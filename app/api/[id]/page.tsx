@@ -70,6 +70,21 @@ export default function APIDetailsPage() {
     }
   }, [address]);
 
+  // Reset payment state when modal opens
+  useEffect(() => {
+    if (isPaymentModalOpen) {
+      setPaymentError(null);
+      setTransactionHash(null);
+      setIsProcessingPayment(false);
+      setIsPaymentLoading(false);
+      setAPICallResult(null);
+    } else {
+      // Clear previous payment data when modal closes
+      setCurrentPayment(null);
+      setX402Response(null);
+    }
+  }, [isPaymentModalOpen]);
+
   // Load API details
   useEffect(() => {
     if (!apiId) return;
