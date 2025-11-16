@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic';
 import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PaymentModal } from '@/components/payment-modal';
-import { TransactionHistory } from '@/components/transaction-history';
 import { furoClient, API } from '@/lib/api-client';
 import { formatEther } from 'viem';
 import { useParams, useRouter } from 'next/navigation';
@@ -36,11 +35,11 @@ import {
 } from '@/components/ui/alert';
 import {
   Star,
-  Activity,
   DollarSign,
   Shield,
   AlertCircle,
   ArrowLeft,
+  BarChart3,
 } from 'lucide-react';
 
 export default function APIDetailsPage() {
@@ -69,8 +68,7 @@ export default function APIDetailsPage() {
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [x402Response, setX402Response] = useState<any>(null);
-  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
-  const isReady = isConnected;
+    const isReady = isConnected;
 
   // Set developer address when wallet is connected
   useEffect(() => {
@@ -79,18 +77,22 @@ export default function APIDetailsPage() {
     }
   }, [address]);
 
-  // Reset payment state when modal opens
+  // Reset payment state when modal opens or closes
   useEffect(() => {
     if (isPaymentModalOpen) {
+      // Clear states when modal opens
       setPaymentError(null);
       setTransactionHash(null);
       setIsProcessingPayment(false);
       setIsPaymentLoading(false);
       setAPICallResult(null);
     } else {
-      // Clear previous payment data when modal closes
+      // Clear all payment data when modal closes
+      console.log('🔄 Modal closed, clearing all payment states');
       setCurrentPayment(null);
       setX402Response(null);
+      setIsProcessingPayment(false);
+      setIsPaymentLoading(false);
     }
   }, [isPaymentModalOpen]);
 
@@ -223,11 +225,11 @@ export default function APIDetailsPage() {
     } catch (error: any) {
       console.error('Purchase processing error:', error);
       setPaymentError(error.message);
+    } finally {
+      // Always ensure all processing states are cleared
+      console.log('🔄 Clearing all payment processing states due to error');
       setIsProcessingPayment(false);
       setIsPaymentLoading(false);
-    } finally {
-      // Ensure processing state is cleared
-      setIsProcessingPayment(false);
     }
   };
 
@@ -311,7 +313,7 @@ export default function APIDetailsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-muted-foreground">
-                        <Activity className="h-4 w-4" />
+                        <BarChart3 className="h-4 w-4" />
                         {api.totalCalls.toLocaleString()} calls
                       </div>
                     </div>
@@ -378,15 +380,7 @@ export default function APIDetailsPage() {
                           Call API Now
                         </Button>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowTransactionHistory(true)}
-                          className="flex items-center gap-2"
-                        >
-                          <Activity className="h-4 w-4" />
-                          View Transaction History
-                        </Button>
-                      </div>
+                                              </div>
                     </div>
 
                     <div className="text-xs text-muted-foreground">
@@ -402,18 +396,7 @@ export default function APIDetailsPage() {
               </Card>
             )}
 
-            {/* Transaction History */}
-            {showTransactionHistory && (
-              <Card>
-                <CardContent className="pt-6">
-                  <TransactionHistory
-                    developerAddress={address!}
-                    onBack={() => setShowTransactionHistory(false)}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
+            
             {/* Tabs */}
             <Tabs defaultValue="overview">
               <TabsList>
@@ -495,13 +478,10 @@ export default function APIDetailsPage() {
                     </div>
                     <Button
                       onClick={handlePayAndCall}
-                      disabled={!isReady || isPaymentLoading || isProcessingPayment}
+                      disabled={!isReady}
                       className="w-full"
                     >
-                      {isPaymentLoading || isProcessingPayment
-                        ? 'Processing...'
-                        : 'Pay & Call API'
-                      }
+                      Pay & Call API
                     </Button>
                     {!isReady && (
                       <div className="text-xs text-orange-600 text-center">
@@ -573,13 +553,10 @@ export default function APIDetailsPage() {
 
                 <Button
                   onClick={handlePayAndCall}
-                  disabled={!isReady || isPaymentLoading || isProcessingPayment}
+                  disabled={!isReady}
                   className="w-full mt-6"
                 >
-                  {isPaymentLoading || isProcessingPayment
-                    ? 'Processing...'
-                    : 'Pay & Call API'
-                  }
+                  Pay & Call API
                 </Button>
 
                 {!isReady && (
@@ -588,17 +565,7 @@ export default function APIDetailsPage() {
                   </div>
                 )}
 
-                {address && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTransactionHistory(true)}
-                    className="w-full mt-4 flex items-center gap-2"
-                  >
-                    <Activity className="h-4 w-4" />
-                    Transaction History
-                  </Button>
-                )}
-
+                
                 <div className="text-xs text-muted-foreground text-center mt-4">
                   Powered by x402 protocol. Payment required before each API call.
                 </div>

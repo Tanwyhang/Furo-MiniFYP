@@ -7,7 +7,7 @@
  * Run with: pnpm tsx test/update-test-providers.ts
  */
 
-import { PrismaClient } from '@/lib/generated/prisma/client';
+import { PrismaClient } from '../lib/generated/prisma/client.js';
 
 const prisma = new PrismaClient();
 

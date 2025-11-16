@@ -25,32 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Verify payment and get tokens
-    const paymentVerificationResponse = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/payments/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transactionHash,
-        apiId,
-        developerAddress,
-        paymentAmount: '0', // We'll get this from the existing payment record
-        currency: 'ETH',
-        network: 'sepolia'
-      })
-    });
+    const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+    const paymentUrl = `${baseUrl}/api/payments/process`;
 
-    const paymentData = await paymentVerificationResponse.json();
+    console.log('🔍 Starting purchase process for API:', apiId);
 
-    if (!paymentData.success || !paymentData.data.tokens || paymentData.data.tokens.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Payment verification failed or no tokens available'
-        },
-        { status: 400 }
-      );
-    }
-
-    // Step 2: Get API details
+    // Step 1: Get API details first to get the correct payment amount
     const api = await prisma.api.findUnique({
       where: { id: apiId },
       include: { Provider: true }
@@ -63,6 +43,60 @@ export async function POST(request: NextRequest) {
           error: 'API not found or inactive'
         },
         { status: 404 }
+      );
+    }
+
+    // Step 2: Verify payment with the correct amount
+    console.log('🔄 Verifying payment with correct amount:', api.pricePerCall);
+    console.log('📝 Payment verification data:', {
+      transactionHash,
+      apiId,
+      developerAddress,
+      paymentAmount: api.pricePerCall,
+      currency: 'ETH',
+      network: 'sepolia'
+    });
+
+    let paymentResponse;
+    try {
+      paymentResponse = await fetch(paymentUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionHash,
+          apiId,
+          developerAddress,
+          paymentAmount: api.pricePerCall, // Use actual API price
+          currency: 'ETH',
+          network: 'sepolia'
+        })
+      });
+    } catch (fetchError) {
+      console.error('❌ Payment verification fetch failed:', fetchError);
+      throw new Error(`Failed to connect to payment service: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+    }
+
+    let paymentData;
+    try {
+      paymentData = await paymentResponse.json();
+    } catch (parseError) {
+      console.error('❌ Failed to parse payment response:', parseError);
+      throw new Error('Invalid response from payment service');
+    }
+
+    console.log('✅ Payment verification response:', {
+      status: paymentResponse.status,
+      success: paymentData.success,
+      hasTokens: paymentData.data?.tokens?.length > 0
+    });
+
+    if (!paymentData.success || !paymentData.data.tokens || paymentData.data.tokens.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: paymentData.error || 'Payment verification failed or no tokens available'
+        },
+        { status: 400 }
       );
     }
 
@@ -81,7 +115,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Step 4: Get the first available token
+    // Step 4: Get the first available token from the successful verification
     const firstToken = paymentData.data.tokens[0];
 
     // Step 5: Return success response with public endpoint info

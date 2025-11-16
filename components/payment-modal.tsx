@@ -21,6 +21,8 @@ import {
   Wallet,
   Shield,
   Zap,
+  Check,
+  Copy,
 } from 'lucide-react';
 import { formatEther } from 'viem';
 import { useAccount, useWalletClient, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
@@ -61,6 +63,7 @@ export function PaymentModal({
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [completedTxHash, setCompletedTxHash] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     if (copiedAddress) {
@@ -75,8 +78,25 @@ export function PaymentModal({
       setCompletedTxHash(null);
       setIsSendingPayment(false);
       setCopiedAddress(false);
+      setShowConfirmation(false);
     }
   }, [isOpen]);
+
+  // Handle confirmation button click
+  const handleConfirmSuccess = () => {
+    console.log('🔄 User confirmed success, resetting modal state');
+
+    // Reset all states to initial state
+    setCompletedTxHash(null);
+    setShowConfirmation(false);
+    setNetworkError(null);
+    setCopiedAddress(false);
+
+    // Close the modal
+    if (onClose) {
+      onClose();
+    }
+  };
 
   // Network configuration
   const getNetworkChainId = (network: string): number => {
@@ -124,7 +144,6 @@ export function PaymentModal({
       const transactionResult = await walletClient.sendTransaction(transactionParams);
 
       console.log('✅ Transaction sent:', transactionResult);
-      setCompletedTxHash(transactionResult);
 
       // Wait for transaction confirmation
       console.log('⏳ Waiting for transaction confirmation...');
@@ -133,13 +152,19 @@ export function PaymentModal({
         confirmations: 1,
       });
 
+      // Set completed hash AFTER confirmation to show success state
+      setCompletedTxHash(transactionResult);
+
       console.log('🎉 Transaction confirmed:', {
         hash: receipt.transactionHash,
         blockNumber: receipt.blockNumber,
         status: receipt.status
       });
 
+      // Important: Turn off processing state BEFORE showing success
       setIsSendingPayment(false);
+      setShowConfirmation(true); // Show confirmation button
+      console.log('✅ Processing state turned off, showing success message and confirmation');
 
       if (onPaymentComplete) {
         onPaymentComplete(transactionResult);
@@ -257,31 +282,57 @@ export function PaymentModal({
           )}
 
           {completedTxHash && !isSendingPayment && (
-            <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
-              <CardContent>
-                <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
-                  <CheckCircle className="h-5 w-5" />
-                  <div className="flex-1">
-                    <p className="font-medium">Payment Sent!</p>
-                    <p className="text-sm opacity-90">
-                      Transaction: {completedTxHash.slice(0, 10)}...
-                    </p>
+            <>
+              <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                <CardContent>
+                  <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
+                    <CheckCircle className="h-5 w-5" />
+                    <div className="flex-1">
+                      <p className="font-medium">Payment Sent!</p>
+                      <p className="text-sm opacity-90">
+                        Transaction: {completedTxHash.slice(0, 10)}...
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={viewOnEtherscan}
+                      className="flex items-center gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View on Explorer
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={viewOnEtherscan}
-                    className="flex items-center gap-2"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View on Explorer
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {showConfirmation && (
+                <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-green-700 dark:text-green-400 mb-2">
+                        Payment Successful!
+                      </h3>
+                      <p className="text-sm text-green-600 dark:text-green-500 mb-4">
+                        Your payment has been confirmed and the API has been added to your purchased list.
+                      </p>
+                      <Button
+                        onClick={handleConfirmSuccess}
+                        className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                        size="lg"
+                      >
+                        Confirm & Continue
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
 
-          <Card className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white">
+          {!completedTxHash && (
+              <Card className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-white text-2xl font-black font-sans">
                    <Shield className="h-6 w-6" />
@@ -355,16 +406,11 @@ export function PaymentModal({
                     {!completedTxHash && (
                       <Button
                         onClick={handleOneClickPayment}
-                        disabled={isSendingPayment || !walletClient || !isConnected}
+                        disabled={!walletClient || !isConnected}
                         className="w-full mt-6 bg-white text-blue-600 hover:bg-blue-50 font-semibold"
                         size="lg"
                       >
-                        {isSendingPayment ? (
-                          <>
-                            <Spinner size="sm" className="mr-2" />
-                            Sending Transaction...
-                          </>
-                        ) : !isConnected ? (
+                        {!isConnected ? (
                           <>
                             <Wallet className="h-4 w-4 mr-2" />
                             Connect Wallet
@@ -385,6 +431,7 @@ export function PaymentModal({
                   </div>
                 </CardContent>
               </Card>
+            )}
 
           <div className="flex justify-between items-center pt-4 border-t">
             <div className="text-xs text-muted-foreground">
