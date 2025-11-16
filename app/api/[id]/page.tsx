@@ -1,13 +1,16 @@
 'use client';
 
 import { useAccount } from 'wagmi';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PaymentModal } from '@/components/payment-modal';
+import { TransactionHistory } from '@/components/transaction-history';
 import { furoClient, API } from '@/lib/api-client';
 import { formatEther } from 'viem';
 import { useParams, useRouter } from 'next/navigation';
+import AnimatedBeam from '@/components/animated-beam';
 
 const Header = dynamic(() => import('@/components/header').then(mod => ({ default: mod.Header })), {
   ssr: false
@@ -54,6 +57,11 @@ export default function APIDetailsPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [apiParams, setApiParams] = useState<Record<string, any>>({});
 
+  // Refs for animated beam
+  const beamContainerRef = useRef<HTMLDivElement>(null);
+  const walletRef = useRef<HTMLDivElement>(null);
+  const apiRef = useRef<HTMLDivElement>(null);
+
   // Payment state
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -61,6 +69,7 @@ export default function APIDetailsPage() {
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [x402Response, setX402Response] = useState<any>(null);
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false);
   const isReady = isConnected;
 
   // Set developer address when wallet is connected
@@ -115,8 +124,12 @@ export default function APIDetailsPage() {
   const handlePayAndCall = async () => {
     if (!api || !isReady) return;
 
+    // Clear all previous states
     setIsPaymentLoading(true);
     setPaymentError(null);
+    setAPICallResult(null);
+    setTransactionHash(null);
+    setIsProcessingPayment(false);
 
     try {
       // Step 1: Try to call the API directly (should trigger 402 Payment Required)
@@ -150,6 +163,8 @@ export default function APIDetailsPage() {
     } catch (error: any) {
       console.error('API call error:', error);
       setPaymentError(error.message);
+      setIsPaymentLoading(false);
+      setIsProcessingPayment(false);
     } finally {
       setIsPaymentLoading(false);
     }
@@ -182,6 +197,13 @@ export default function APIDetailsPage() {
         setTransactionHash(txHash);
         setIsPaymentModalOpen(false);
 
+        // Clear all processing states
+        setIsProcessingPayment(false);
+        setIsPaymentLoading(false);
+        setPaymentError(null);
+        setCurrentPayment(null);
+        setX402Response(null);
+
         // Show success message with API endpoint info
         setAPICallResult({
           success: true,
@@ -201,7 +223,10 @@ export default function APIDetailsPage() {
     } catch (error: any) {
       console.error('Purchase processing error:', error);
       setPaymentError(error.message);
+      setIsProcessingPayment(false);
+      setIsPaymentLoading(false);
     } finally {
+      // Ensure processing state is cleared
       setIsProcessingPayment(false);
     }
   };
@@ -335,7 +360,7 @@ export default function APIDetailsPage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <Button
                         variant="default"
                         onClick={() => router.push('/purchased-apis')}
@@ -345,12 +370,23 @@ export default function APIDetailsPage() {
                         View Purchased APIs
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push('/purchased-apis')}
-                      >
-                        Call API Now
-                      </Button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push('/purchased-apis')}
+                        >
+                          Call API Now
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowTransactionHistory(true)}
+                          className="flex items-center gap-2"
+                        >
+                          <Activity className="h-4 w-4" />
+                          View Transaction History
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="text-xs text-muted-foreground">
@@ -362,6 +398,18 @@ export default function APIDetailsPage() {
                       </ul>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transaction History */}
+            {showTransactionHistory && (
+              <Card>
+                <CardContent className="pt-6">
+                  <TransactionHistory
+                    developerAddress={address!}
+                    onBack={() => setShowTransactionHistory(false)}
+                  />
                 </CardContent>
               </Card>
             )}
@@ -492,6 +540,37 @@ export default function APIDetailsPage() {
                 <CardTitle>Payment Flow</CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Animated payment flow visualization */}
+                <div className="relative h-32" ref={beamContainerRef}>
+                  <AnimatedBeam
+                    containerRef={beamContainerRef}
+                    fromRef={walletRef}
+                    toRef={apiRef}
+                    reverse={false}
+                    duration={2.5}
+                    gradientStartColor="#f2f4f8ff"
+                    pathColor="#919395ff"
+                    pathOpacity={0.3}
+                  />
+
+                  <div className="absolute top-0 left-0 right-0 flex justify-between items-start">
+                    <div
+                      ref={walletRef}
+                      className="flex flex-col items-center p-2 bg-background/90 backdrop-blur rounded-lg border border-border/50"
+                    >
+                      <DollarSign className="h-4 w-4 text-primary mb-1" />
+                      <span className="text-xs font-medium">Wallet</span>
+                    </div>
+                    <div
+                      ref={apiRef}
+                      className="flex flex-col items-center p-2 bg-background/90 backdrop-blur rounded-lg border border-border/50"
+                    >
+                      <Shield className="h-4 w-4 text-green-600 mb-1" />
+                      <span className="text-xs font-medium">API</span>
+                    </div>
+                  </div>
+                </div>
+
                 <Button
                   onClick={handlePayAndCall}
                   disabled={!isReady || isPaymentLoading || isProcessingPayment}
@@ -507,6 +586,17 @@ export default function APIDetailsPage() {
                   <div className="text-xs text-orange-600 text-center mt-2">
                     Connect your wallet to make API calls
                   </div>
+                )}
+
+                {address && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowTransactionHistory(true)}
+                    className="w-full mt-4 flex items-center gap-2"
+                  >
+                    <Activity className="h-4 w-4" />
+                    Transaction History
+                  </Button>
                 )}
 
                 <div className="text-xs text-muted-foreground text-center mt-4">

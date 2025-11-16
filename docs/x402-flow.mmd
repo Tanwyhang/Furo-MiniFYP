@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+
+    participant Client
+    participant Server
+    participant Facilitator
+    participant Blockchain
+
+    Client->>Server: GET /api
+    Server-->>Client: 402 - Payment Required
+
+    Client->>Client: Select payment method\nand create payload
+
+    Client->>Server: Include Header:\nX-PAYMENT: 664 payload
+
+    Server->>Facilitator: /verify
+    Facilitator-->>Server: verification
+
+    Facilitator->>Facilitator: do work to\nfulfill request
+
+    Server->>Facilitator: /settle
+    Facilitator->>Blockchain: Submit tx w/\nsig to USDC contract
+    Blockchain-->>Facilitator: Tx confirmed
+
+    Facilitator-->>Server: settled
+    Server-->>Client: return response\nw/ X-PAYMENT-RESPONSE
+
+    Note over Client,Blockchain: latency introduced ≈ block time\nserver can opt not to await settlement\nif not awaiting: only facilitator API round-trip latency applies

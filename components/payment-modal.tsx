@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Spinner } from '@/components/ui/spinner';
 import {
   ArrowRight,
   Clock,
@@ -23,6 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { formatEther } from 'viem';
+import { useAccount, useWalletClient, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { X402PaymentRequired } from '@/lib/api-client';
 
 interface PaymentModalProps {
@@ -48,10 +49,18 @@ export function PaymentModal({
   providerWalletAddress,
   platformFee = 3, // Default 3% platform fee
 }: PaymentModalProps) {
-  // All hooks must be called at the top level
+  // Web3 hooks
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+
+  // Component state
   const [isSendingPayment, setIsSendingPayment] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [completedTxHash, setCompletedTxHash] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   useEffect(() => {
     if (copiedAddress) {
@@ -69,44 +78,101 @@ export function PaymentModal({
     }
   }, [isOpen]);
 
-  // One-click payment function
+  // Network configuration
+  const getNetworkChainId = (network: string): number => {
+    switch (network?.toLowerCase()) {
+      case 'mainnet': return 1;
+      case 'polygon': return 137;
+      case 'base': return 8453;
+      case 'sepolia': return 11155111;
+      case 'base-sepolia': return 84532;
+      default: return 11155111; // Default to Sepolia
+    }
+  };
+
+  // One-click payment function with real Web3 transaction
   const handleOneClickPayment = async () => {
-    if (!paymentDetails || isSendingPayment) return;
+    if (!paymentDetails || isSendingPayment || !walletClient || !publicClient) return;
 
     setIsSendingPayment(true);
+    setNetworkError(null);
 
     try {
-      // In production, this would use Web3 library (ethers.js, viem, etc.) to send transaction
-      // For now, we'll simulate the transaction sending
-      console.log('💳 Sending payment transaction...');
+      console.log('💳 Initiating real Web3 transaction...');
 
-      // Simulate transaction sending
-      setTimeout(() => {
-        const simulatedTxHash = '0x' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        setCompletedTxHash(simulatedTxHash);
-        setIsSendingPayment(false);
+      // Check if we're on the correct network
+      const targetChainId = getNetworkChainId(paymentDetails.network || 'sepolia');
+      if (chainId !== targetChainId) {
+        console.log(`🔄 Switching to network: ${paymentDetails.network}`);
+        await switchChain({ chainId: targetChainId });
+      }
 
-        if (onPaymentComplete) {
-          onPaymentComplete(simulatedTxHash);
-        }
-      }, 2000);
+      // Prepare transaction
+      const transactionParams = {
+        to: paymentRecipient as `0x${string}`,
+        value: BigInt(paymentDetails.amount),
+        // You can add gas limit and other params here if needed
+      };
 
-    } catch (error) {
-      console.error('Payment failed:', error);
+      console.log('📝 Transaction params:', {
+        to: transactionParams.to,
+        value: formatEther(transactionParams.value),
+        network: paymentDetails.network
+      });
+
+      // Send real transaction
+      const transactionResult = await walletClient.sendTransaction(transactionParams);
+
+      console.log('✅ Transaction sent:', transactionResult);
+      setCompletedTxHash(transactionResult);
+
+      // Wait for transaction confirmation
+      console.log('⏳ Waiting for transaction confirmation...');
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: transactionResult,
+        confirmations: 1,
+      });
+
+      console.log('🎉 Transaction confirmed:', {
+        hash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        status: receipt.status
+      });
+
       setIsSendingPayment(false);
+
+      if (onPaymentComplete) {
+        onPaymentComplete(transactionResult);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Payment failed:', error);
+      setIsSendingPayment(false);
+
+      // Handle specific error types
+      if (error.code === 4001) {
+        setNetworkError('Transaction rejected by user');
+      } else if (error.code === -32603 || error.message?.includes('insufficient funds')) {
+        setNetworkError('Insufficient funds for transaction');
+      } else if (error.message?.includes('network')) {
+        setNetworkError('Network error. Please try again');
+      } else {
+        setNetworkError(error.message || 'Payment transaction failed');
+      }
     }
   };
 
   // Early return after all hooks are declared
   if (!paymentDetails) return null;
 
-  // Calculate payment breakdown
+  // Calculate payment breakdown - P2P Zero Fees!
   const totalAmount = BigInt(paymentDetails.amount);
-  const platformFeeAmount = (totalAmount * BigInt(platformFee)) / BigInt(100);
-  const providerAmount = totalAmount - platformFeeAmount;
+  const platformFeeAmount = BigInt(0); // Zero fees in P2P model
+  const providerAmount = totalAmount; // 100% to provider!
 
-  // Use provider wallet address directly
-  const paymentRecipient = providerWalletAddress || paymentDetails.address;
+  // P2P Direct Model - Always direct to provider
+  const paymentRecipient = paymentDetails.address;
+  const paymentModel = 'P2P Direct (0% Fees)';
   const amount = formatEther(totalAmount);
   const platformFeeFormatted = formatEther(platformFeeAmount);
   const providerAmountFormatted = formatEther(providerAmount);
@@ -134,8 +200,6 @@ export function PaymentModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader className="text-black rounded-t-lg">
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            One-Click Payment
           </DialogTitle>
           <DialogDescription>
             Pay instantly to access this API. No manual transactions required.
@@ -157,16 +221,25 @@ export function PaymentModal({
             </Card>
           )}
 
+          {networkError && (
+            <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+              <CardContent>
+                <div className="flex items-center gap-3 text-orange-700 dark:text-orange-400">
+                  <AlertTriangle className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Network Error</p>
+                    <p className="text-sm opacity-90">{networkError}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {isSendingPayment && (
             <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
-              <CardContent className="pt-6">
-                <header>
-                  <h3 className="text-lg font-medium mb-2">Processing Payment</h3>
-                </header>
+              <CardContent>
                 <div className="flex items-center gap-3 text-blue-700 dark:text-blue-400">
-                  <div className="animate-spin">
-                    <Zap className="h-5 w-5" />
-                  </div>
+                  <Spinner size="md" className="text-blue-600" />
                   <div className="flex-1">
                     <p className="font-medium">Sending Payment...</p>
                     <p className="text-sm opacity-90">
@@ -232,7 +305,22 @@ export function PaymentModal({
                     <div className="border-t border-white/20 pt-4">
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-blue-100">Provider</span>
+                          <span className="text-sm text-blue-100">Payment Model</span>
+                          <Badge className="bg-green-500 text-white border-green-600">
+                            {paymentModel}
+                          </Badge>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-blue-100">Platform Fee</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-green-300 font-bold">0% - P2P Direct!</span>
+                            <div className="h-2 w-2 bg-green-400 rounded-full"></div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-blue-100">Recipient</span>
                           <div className="flex items-center gap-2">
                             <code className="text-xs bg-white/20 px-2 py-1 rounded text-white">
                               {truncatedAddress}
@@ -267,21 +355,29 @@ export function PaymentModal({
                     {!completedTxHash && (
                       <Button
                         onClick={handleOneClickPayment}
-                        disabled={isSendingPayment}
+                        disabled={isSendingPayment || !walletClient || !isConnected}
                         className="w-full mt-6 bg-white text-blue-600 hover:bg-blue-50 font-semibold"
                         size="lg"
                       >
                         {isSendingPayment ? (
                           <>
-                            <div className="animate-spin mr-2">
-                              <Zap className="h-4 w-4" />
-                            </div>
-                            Processing Payment...
+                            <Spinner size="sm" className="mr-2" />
+                            Sending Transaction...
+                          </>
+                        ) : !isConnected ? (
+                          <>
+                            <Wallet className="h-4 w-4 mr-2" />
+                            Connect Wallet
+                          </>
+                        ) : !walletClient ? (
+                          <>
+                            <Wallet className="h-4 w-4 mr-2" />
+                            Initializing Wallet...
                           </>
                         ) : (
                           <>
                             <Shield className="h-4 w-4 mr-2" />
-                            Pay Now - One Click
+                            Pay with Web3
                           </>
                         )}
                       </Button>

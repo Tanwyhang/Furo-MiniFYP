@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { furoClient, API } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Search } from 'lucide-react';
 import {
   Pagination,
   PaginationContent,
@@ -23,9 +23,10 @@ import { getUserFavorites, addFavorite, removeFavorite } from '@/lib/api/favorit
 interface MarketplaceContentProps {
   selectedCategory: string;
   onCategoryChange: (category: string) => void;
+  searchQuery?: string;
 }
 
-export function MarketplaceContent({ selectedCategory, onCategoryChange }: MarketplaceContentProps) {
+export function MarketplaceContent({ selectedCategory, onCategoryChange, searchQuery = '' }: MarketplaceContentProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [apis, setApis] = useState<API[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,6 +94,10 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
         params.category = selectedCategory;
       }
 
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+
       const response = await furoClient.getAPIs(params);
       if (response.success && response.data) {
         // Separate favorites and non-favorites
@@ -128,7 +133,7 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
     } catch (error) {
       console.error('Error loading favorite APIs:', error);
     }
-  }, [address, favorites, selectedCategory, pageSize]);
+  }, [address, favorites, selectedCategory, searchQuery, pageSize]);
 
   // Load APIs from backend
   const loadAPIs = async (pageNum = 1) => {
@@ -150,6 +155,10 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
 
         if (selectedCategory !== 'All') {
           params.category = selectedCategory;
+        }
+
+        if (searchQuery.trim()) {
+          params.search = searchQuery.trim();
         }
 
         const response = await furoClient.getAPIs(params);
@@ -176,7 +185,7 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
   useEffect(() => {
     setCurrentPage(1);
     loadAPIs(1);
-  }, [selectedCategory, address]);
+  }, [selectedCategory, searchQuery, address]);
 
   // Reload APIs when favorites change (to update pagination)
   useEffect(() => {
@@ -309,6 +318,49 @@ export function MarketplaceContent({ selectedCategory, onCategoryChange }: Marke
           Refresh
         </Button>
       </div>
+
+      {/* Search Results Feedback */}
+      {(searchQuery.trim() || selectedCategory !== 'All') && (
+        <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {searchQuery.trim() && (
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Searching for: <span className="text-foreground font-medium">"{searchQuery}"</span>
+                  </span>
+                </div>
+              )}
+              {selectedCategory !== 'All' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    Category: <span className="text-foreground font-medium">{selectedCategory}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Searching...</span>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  {totalAPIs > 0 ? (
+                    <span>
+                      {displayAPIs.length} of {totalAPIs} results
+                    </span>
+                  ) : (
+                    <span>No results found</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error State */}
       {error && (
