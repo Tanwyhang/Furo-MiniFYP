@@ -1,0 +1,51 @@
+flowchart LR
+  %% Furo Platform - Simplified Data Flow Diagram (reduced crossovers)
+
+  C["Clients Web & Mobile"]
+
+  subgraph S[Server - Next.js]
+    direction TB
+    MKT["Marketplace\nBrowse/Search"]
+    AUTH["Auth\nSignature & Session"]
+    X402["x402 Middleware\n402 Payment Required"]
+    PAY["Payment\nVerify & Process"]
+    TOK["Token Issuance"]
+    USE["Token Consumption\nand Usage Logging"]
+  end
+
+  subgraph D[Data Store]
+    direction TB
+    DB[(PostgreSQL via Prisma)]
+  end
+
+  subgraph X[External]
+    direction TB
+    CHAIN[[Blockchain]]
+    EXT[[Provider API]]
+  end
+
+  %% Client interactions (left -> right)
+  C --> MKT
+  C --> AUTH
+  C --> X402
+  X402 -->|402 and payment config| C
+  C -->|txHash, apiId, amount| PAY
+
+  %% Server to External (no crossovers)
+  PAY --> CHAIN
+  USE --> EXT
+  EXT --> USE
+
+  %% Server to Data Store
+  MKT --> DB
+  AUTH --> DB
+  X402 --> DB
+  PAY -->|Payment record| DB
+  TOK -->|Tokens| DB
+  USE -->|UsageLog| DB
+
+  %% Internal process sequence (top -> bottom)
+  PAY --> TOK
+  TOK --> C
+  C -->|X-Token-Hash| USE
+  USE --> C
