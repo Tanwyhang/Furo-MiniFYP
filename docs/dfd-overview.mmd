@@ -1,51 +1,19 @@
 flowchart LR
-  %% Furo Platform - Simplified Data Flow Diagram (reduced crossovers)
+  %% Furo Platform - Entity Interaction View (No central process)
 
-  C["Clients Web & Mobile"]
+  DEV((Developers Web & Mobile))
+  PROV((API Providers))
+  CHAIN((Blockchain))
 
-  subgraph S[Server - Next.js]
-    direction TB
-    MKT["Marketplace\nBrowse/Search"]
-    AUTH["Auth\nSignature & Session"]
-    X402["x402 Middleware\n402 Payment Required"]
-    PAY["Payment\nVerify & Process"]
-    TOK["Token Issuance"]
-    USE["Token Consumption\nand Usage Logging"]
-  end
+  %% Discovery and documentation
+  DEV -- Browse & select API --> PROV
+  PROV -- API metadata & docs --> DEV
 
-  subgraph D[Data Store]
-    direction TB
-    DB[(PostgreSQL via Prisma)]
-  end
+  %% Payment on-chain (P2P to provider wallet)
+  DEV -- Submit payment to provider address --> CHAIN
+  CHAIN -- Confirm Payment --> DEV
+  CHAIN -- Update Payment Status --> PROV
 
-  subgraph X[External]
-    direction TB
-    CHAIN[[Blockchain]]
-    EXT[[Provider API]]
-  end
-
-  %% Client interactions (left -> right)
-  C --> MKT
-  C --> AUTH
-  C --> X402
-  X402 -->|402 and payment config| C
-  C -->|txHash, apiId, amount| PAY
-
-  %% Server to External (no crossovers)
-  PAY --> CHAIN
-  USE --> EXT
-  EXT --> USE
-
-  %% Server to Data Store
-  MKT --> DB
-  AUTH --> DB
-  X402 --> DB
-  PAY -->|Payment record| DB
-  TOK -->|Tokens| DB
-  USE -->|UsageLog| DB
-
-  %% Internal process sequence (top -> bottom)
-  PAY --> TOK
-  TOK --> C
-  C -->|X-Token-Hash| USE
-  USE --> C
+  %% API access with proof
+  DEV -- API request --> PROV
+  PROV -- API response --> DEV
